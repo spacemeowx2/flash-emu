@@ -21,9 +21,17 @@ exports.build = (rebuild = false, callback) => {
   walkFolder(flash_dir, files)
   walkFolder(avm_dir, avmFiles)
   files = files.concat(avmFiles)
-  // console.log(files)
+  console.log(files)
   files = resolveDeps(files)
-  // console.log(files)
+  console.log(files)
+  // files = [
+  //   'flash\\events\\EventDispatcher.as',
+  //   'flash\\display\\DisplayObject.as',
+  //   'flash\\display\\InteractiveObject.as',
+  //   'flash\\display\\DisplayObjectContainer.as',
+  //   'flash\\events\\IEventDispatcher.as',
+  //   'flash\\events\\Event.as',
+  // ]
   runAsc(outputAbc, files, (code) => {
     callback()
   })
@@ -34,8 +42,6 @@ function package2filename (name) {
 }
 
 function getDeps (origin, str) {
-  let out = new Set()
-  let imports = new Map()
   const fullName = (name) => {
     if (name.indexOf('.') === -1) {
       if (imports.has(name)) {
@@ -49,6 +55,8 @@ function getDeps (origin, str) {
   }
   const importRE = /import\s+([a-zA-Z0-9\.]+)/g
   const extendRE = /class\s+([^\s]+?)\s+(extends\s+([^\s]+?)\s*)?(implements\s+(.+?)\s*)?\{/g
+  let out = new Set()
+  let imports = new Map()
   let r
   while (r = importRE.exec(str)) {
     const qname = r[1]

@@ -6,7 +6,7 @@ import {Scope, ApplicationDomain, SecurityDomain} from './runtime'
 import {Logger, LogFilter, setGlobalFlags, ILoggerFlags} from './logger'
 import {SWFFile, TagType, TagDefineBinaryData, TagDoABC} from './swf'
 import {topFunctions, clear} from './profile'
-import {AXObject} from './base'
+import {vm, ValueManager} from './value'
 const logger = new Logger('FlashEmu')
 
 interface FileInterface {
@@ -107,7 +107,7 @@ export default class FlashEmu {
   setProperty (pkg: string, name: string, value: any) {
     const mn = Multiname.Package(pkg, name)
     let obj = this.app.findProperty(mn, true, true)
-    obj.axSetProperty(mn, value, false)
+    vm.setProperty(obj, mn, value)
   }
   executeScript (abcid: number = -1, id: number = -1) {
     if (abcid < 0) {
@@ -122,7 +122,7 @@ export default class FlashEmu {
   }
   hookFlascc (name: string, espPkg: string, argCount: number, func: (...args: number[]) => any) {
     const self = this
-    const callback = function (this: AXObject) {
+    const callback = () => {
       const esp = self.getProperty(espPkg, 'ESP')
       const view = this.app.domainMemory.view
       let ps: number[] = []
@@ -176,25 +176,6 @@ export default class FlashEmu {
     logger.error(ret)
   }
   async testswf (fileName: string) {
-    this.hookFlascc('F__ZN11CCommonFunc6RSHashEj', 'sample.xx', 1, (pVal) => {
-      // const u8 = this.app.domainMemory.u8view
-      // let a = u8[pVal + 1]
-      // let b = u8[pVal]
-      // b = (b * 0x9D0A4DAF) | 0
-      // a = (a + b) | 0
-      // a = (a * 0xBEDDE219) | 0
-      // b = u8[pVal + 2]
-      // a = (a + b) | 0
-      // a = (a * 0x77F8F5DF) | 0
-      // const ret = (u8[pVal + 3] + a) | 0
-      this.setProperty('sample.xx', 'eax', 0)
-    })
-    let cur = 0
-    this.hookFlascc('F__Znwj', 'sample.xx', 1, (len) => {
-      this.app.domainMemory.length = 0x800000
-      this.setProperty('sample.xx', 'eax', 0x600000 + cur)
-      cur += len
-    })
     let time = (new Date()).getTime()
     await this.loadSWF(fileName)
     this.swf.dropUnusedTags()
@@ -202,11 +183,20 @@ export default class FlashEmu {
     for (let abc of doAbc) {
       this.loadABC(abc.data, this.app)
     }
+    const oea = this.app.findProperty(Multiname.Package('sample.xx', 'eax'), true, true)
+    const meax = Multiname.Public('eax')
+    this.hookFlascc('F__ZN11CCommonFunc6RSHashEj', 'sample.xx', 0, () => {
+      vm.setProperty(oea, meax, 0)
+    })
 
-    let CModule = this.app.getClass(Multiname.Package('sample.xx', 'CModule'))
-    let xx = this.app.getClass(Multiname.Public('xx'))
+    const rCModule = this.app.getClass(Multiname.Package('sample.xx', 'CModule'))
+    const rxx = this.app.getClass(Multiname.Public('xx'))
+    const CModule = vm.getProxy(rCModule)
+    const xx = vm.getProxy(rxx)
     logger.error('CModule get')
+
     CModule.callProperty('startAsync')
+
     logger.error('CModule loaded')
     const sign = () => {
       let time = (new Date()).getTime()

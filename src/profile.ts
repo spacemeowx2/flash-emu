@@ -6,7 +6,7 @@ let funcTable = new Map<string, FunctionInfo>()
 let startStack = new Map<string, number[]>()
 let now: () => number
 if (typeof performance !== 'undefined') {
-  now = () => performance.now() / 1000
+  now = () => performance.now()
 } else if (typeof process !== 'undefined') {
   now = () => {
     const r = process.hrtime()

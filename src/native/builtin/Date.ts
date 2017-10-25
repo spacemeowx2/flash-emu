@@ -1,4 +1,4 @@
-import {NativeClass, INativeClass, ApplicationDomain, AXObject, AXNativeClass} from '@/native'
+import {NativeClass, ApplicationDomain, AXNativeClass} from '@/native'
 class DateObj extends Date {
   toString () {
     return super.toString()
@@ -11,10 +11,8 @@ class DateObj extends Date {
   }
 }
 @NativeClass('DateClass')
-export class DateClass implements INativeClass {
-  constructor (public self: AXNativeClass) {
-  }
-  axNewNative (self: AXObject, ...args: any[]): any {
+export class DateClass extends AXNativeClass {
+  axConstruct (self: RefValue, ...args: any[]): any {
     return new DateObj(...args)
   }
 }

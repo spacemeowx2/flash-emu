@@ -1,4 +1,5 @@
-import {NativeClass, INativeClass, AXNativeClass, SecurityDomain, ApplicationDomain, AXObject, AXNativeObject, AXClass} from '@/native'
+import {NativeClass, AXNativeClass, SecurityDomain, ApplicationDomain, AXClass} from '@/native'
+import {ByteArray} from '@/native/builtin/ByteArray'
 import {Multiname} from '@/abc'
 class AXApplicationDomain {
   constructor (public app: ApplicationDomain) {
@@ -6,23 +7,17 @@ class AXApplicationDomain {
   }
   get domainMemory () {
     const domainMemory = this.app.domainMemory
-    return domainMemory && domainMemory.self
+    return domainMemory
   }
-  set domainMemory (v: AXObject) {
-    this.app.domainMemory = (v as any).native
+  set domainMemory (v: ByteArray) {
+    this.app.domainMemory = v
   }
 }
 @NativeClass('ApplicationDomainClass')
-export class ApplicationDomainClass implements INativeClass {
-  constructor (public self: AXNativeClass) {
-
-  }
-  axNewNative (self: AXObject, app: ApplicationDomain): any {
-    return new AXApplicationDomain(app)
-  }
+export class ApplicationDomainClass extends AXNativeClass {
   get currentDomain () {
-    let self = this.self.axNew(this.self.app.sec.flashEmu.interpreter.getCurrentAPP())
-    return self
+    const app = this.app.sec.flashEmu.interpreter.getCurrentAPP()
+    return new AXApplicationDomain(app)
   }
   get MIN_DOMAIN_MEMORY_LENGTH () {
     return 1024

@@ -1,4 +1,4 @@
-import {NativeClass, INativeClass, ApplicationDomain, AXObject, AXNativeClass} from '@/native'
+import {NativeClass, vm, ApplicationDomain, AXNativeClass} from '@/native'
 interface IEventDispatcher {
   addEventListener (type: string, listener: Function, useCapture: boolean,
                             priority: number, useWeakReference: boolean): void
@@ -8,13 +8,12 @@ interface IEventDispatcher {
   dispatchEvent(event: Event): boolean
 }
 class EventDispatcher {
-  self: AXObject
   addEventListener (
       type: string, listener: Function, useCapture: boolean,
       priority: number, useWeakReference: boolean) {
     // console.error('addEventListener', type, listener, useCapture, priority, useWeakReference)
     if (type === 'addedToStage') {
-      listener.call(this.self)
+      listener.call(this)
     }
   }
   removeEventListener (type: string, listener: Function, useCapture: boolean) {
@@ -22,12 +21,8 @@ class EventDispatcher {
   }
 }
 @NativeClass('EventDispatcherClass')
-export class EventDispatcherClass implements INativeClass {
-  constructor (public self: AXNativeClass) {
-  }
-  axNewNative (self: AXObject, ...args: any[]): any {
-    let ret = new EventDispatcher(...args)
-    ret.self = self
-    return ret
+export class EventDispatcherClass extends AXNativeClass {
+  axConstruct (self: RefValue, ...args: any[]): any {
+    return new EventDispatcher(...args)
   }
 }

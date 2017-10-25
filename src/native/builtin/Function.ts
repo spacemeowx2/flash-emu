@@ -1,38 +1,41 @@
-import {NativeClass, INativeClass, ApplicationDomain, AXNativeClass, AXObject, AXNativeObject, Dynamic} from '@/native'
-import {Multiname} from '@/abc'
+import {NativeClass, AXNativeClass, NativeAccessor, ApplicationDomain, AXClass} from '@/native'
+import {ClassInfo, Multiname} from '@/abc'
+import {Scope} from '@/runtime'
+import {vm} from '@/value'
 export class FunctionObj {
   func: Function
-  call (self: AXObject, ...args: any[]) {
+  call (self: RefValue, ...args: Value[]) {
     // console.error('Function.call')
     return this.func.call(self, ...args)
   }
-  apply (self: AXObject, args: any[] | AXNativeObject) {
+  apply (self: RefValue, args: Value[]) {
     // console.error('Function.apply')
-    if (args instanceof AXNativeObject) {
-      args = args.native as any as any[]
-    }
     return this.call(self, ...args)
   }
 }
 @NativeClass('FunctionClass')
-export class FunctionClass implements INativeClass {
-  constructor (public self: AXNativeClass) {
-
+export class FunctionClass extends AXNativeClass {
+  axNewNative (): any {
+    return new FunctionObj()
   }
-  axNewNative (self: AXObject, ...args: any[]): any {
-    return new FunctionObj(...args)
+  axConstruct (self: FunctionObj) {
+    return self
   }
-  _onPrototype (prototype: AXObject, self: AXNativeClass) {
+  applyClass (classInfo: ClassInfo, scope: Scope) {
+    super.applyClass(classInfo, scope)
+    const prototype = this.prototype
     const set = (name: string, val: Function) => {
-      prototype.axSetProperty(
+      vm.setProperty(
+        prototype,
         Multiname.Public(name),
-        function (this: AXNativeObject, ...args: any[]) {
-          return val.call(this.native, ...args)
-        },
-        false)
+        val)
     }
     const p = FunctionObj.prototype
-    set('call', p.call)
-    set('apply', p.apply)
+    set('call', function (self: RefValue, ...args: Value[]) {
+      this.call(self, ...args)
+    })
+    set('apply', function (self: RefValue, args: Value[]) {
+      this.call(self, ...args)
+    })
   }
 }

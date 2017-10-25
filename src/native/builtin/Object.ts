@@ -1,21 +1,26 @@
-import {NativeClass, INativeClass, ApplicationDomain, AXObject, AXNativeClass} from '@/native'
-class NativeObject {
-
-}
+import {NativeClass, AXClass, ApplicationDomain, AXNativeClass} from '@/native'
+import {ClassInfo, Multiname} from '@/abc'
+import {Scope} from '@/runtime'
+import {vm} from '@/value'
 @NativeClass('ObjectClass')
-export class ObjectClass implements INativeClass {
-  constructor (public self: AXNativeClass) {
-
+export class ObjectClass extends AXNativeClass {
+  constructor (app: ApplicationDomain, public name: string, superCls?: AXClass) {
+    super(app, name, superCls)
   }
-  axNewNative (self: AXObject, app: ApplicationDomain): any {
-    return new NativeObject()
-  }
-  _onPrototype (prototype: AXObject, self: AXNativeClass) {
-    self.prototype.setProperty('toString', function () {
+  applyClass (classInfo: ClassInfo, scope: Scope) {
+    super.applyClass(classInfo, scope)
+    const prototype = this.prototype
+    vm.setProperty(prototype, Multiname.Public('toString'), () => {
+      return '[object Object]'
+    })
+    vm.setProperty(prototype, Multiname.Public('hasOwnProperty'), (key: string) => {
       return '[object Object]'
     })
   }
   ['_init'] () {
     //
+  }
+  axConstruct (self: RefValue) {
+    return {}
   }
 }

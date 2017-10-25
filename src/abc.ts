@@ -347,7 +347,7 @@ export class TraitInfo {
   }
 }
 export class Traits extends Array<TraitInfo> {
-  getTrait(mn: Multiname): TraitInfo {
+  getTrait (mn: Multiname): TraitInfo {
     let mnName = mn.name
     let nss = mn.nsSet
     let traits = this
@@ -945,126 +945,5 @@ export class AbcFile {
         }
         return v
       }))
-  }
-}
-
-export class RuntimeTraitInfo implements PropertyDescriptor {
-  configurable: boolean = true
-  enumerable: boolean = false
-  writable: boolean = true
-  set: (v: any) => void
-  get: () => any
-  value: any
-  metadata: MetadataInfo
-  slot: number
-  typeName: Multiname
-  _type: AXClass
-  [key: string]: any
-  constructor (public name: Multiname, public kind: CONSTANT.TRAIT) {
-    this.metadata = null
-  }
-  setDescriptor (descriptor: PropertyDescriptor) {
-    const ps = ['configurable', 'enumerable', 'value', 'writable', 'get', 'set']
-    Object.keys(descriptor).filter(i => ps.includes(i)).forEach(key => {
-      this[key] = (descriptor as any)[key]
-    })
-  }
-  descriptor (): PropertyDescriptor {
-    let result = {
-      configurable: this.configurable,
-      enumerable: this.enumerable,
-      writable: this.writable,
-      get: this.get,
-      set: this.set,
-      value: this.value
-    }
-    if (this.get || this.set) {
-      delete result.value
-      delete result.writable
-    } else {
-      delete result.get
-      delete result.set
-    }
-    return result
-  }
-}
-export class RuntimeTraits {
-  slots: RuntimeTraitInfo[]
-  map: Map<string, Map<string, RuntimeTraitInfo>>
-  private _nextSlotID: number = 1
-  constructor (
-      public superTraits: RuntimeTraits,
-      public protectedNs?: Namespace,
-      public protectedNsMappings?: any) {
-    this.slots = []
-    let map = this.map = new Map()
-    if (superTraits) {
-      let superMap = superTraits.map
-      for (let [key, val] of superMap) {
-        map.set(key, new Map(val))
-      }
-    }
-  }
-  /**
-   * if the trait to add has a getter or setter and previews same name trait has the other one,
-   * traits will be merged.
-   */
-  addTrait (trait: RuntimeTraitInfo): RuntimeTraitInfo {
-    let mn = trait.name
-    let mappings = this.map.get(mn.name)
-    if (!mappings) { // undefined
-      mappings = new Map()
-      this.map.set(mn.name, mappings)
-    }
-    const nsName = mn.nsSet[0].mangledName
-    const current = mappings.get(nsName)
-    mappings.set(nsName, trait)
-    if (current) {
-      if (trait.kind === TRAIT.Setter && current.get) {
-        trait.get = current.get
-        trait.kind = TRAIT.GetterSetter
-      }
-      if (trait.kind === TRAIT.Getter && current.set) {
-        trait.set = current.set
-        trait.kind = TRAIT.GetterSetter
-      }
-    }
-    return current
-  }
-  addSlotTrait (trait: RuntimeTraitInfo) {
-    let slot = trait.slot
-    if (!slot) {
-      slot = trait.slot = this._nextSlotID++
-    } else {
-      this._nextSlotID = slot + 1
-    }
-    this.slots[slot] = trait
-  }
-  getTrait (nsSet: Namespace[], name: string) {
-    let mappings = this.map.get(name)
-    if (!mappings) {
-      return null
-    }
-    let trait: RuntimeTraitInfo
-    for (let i = 0; i < nsSet.length; i++) {
-      let ns = nsSet[i]
-      trait = mappings.get(ns.mangledName)
-      if (trait) {
-        return trait
-      }
-      if (ns.type === NamespaceType.Protected) {
-        let protectedScope: RuntimeTraits = this
-        while (protectedScope) {
-          if (protectedScope.protectedNs === ns) {
-            trait = protectedScope.protectedNsMappings[name]
-            if (trait) {
-              return trait
-            }
-          }
-          protectedScope = protectedScope.superTraits
-        }
-      }
-    }
-    return null
   }
 }

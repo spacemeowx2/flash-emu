@@ -1,8 +1,4 @@
-import {NativeClass, INativeClass, ApplicationDomain, AXObject} from '@/native'
+import {NativeClass, ApplicationDomain, AXNativeClass} from '@/native'
 @NativeClass('Class')
-export class ClassClass implements INativeClass {
-  self: AXObject
-  get_prototype(): any {
-    return null
-  }
+export class ClassClass extends AXNativeClass {
 }

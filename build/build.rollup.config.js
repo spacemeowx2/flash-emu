@@ -41,5 +41,5 @@ export default {
  */`,
   format: 'umd',
   moduleName: 'FlashEmu',
-  sourceMap: true
+  sourceMap: false
 }

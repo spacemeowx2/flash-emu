@@ -1,4 +1,4 @@
-import {NativeClass, INativeClass, ApplicationDomain, AXObject, AXNativeClass} from '@/native'
+import {NativeClass, ApplicationDomain, AXNativeClass} from '@/native'
 class StringObj {
   constructor (public str: string) {
 
@@ -29,19 +29,17 @@ class StringObj {
   }
 }
 @NativeClass('StringClass')
-export class StringClass implements INativeClass {
-  constructor (public self: AXNativeClass) {
-  }
-  axNewNative (self: AXObject, str: string): any {
+export class StringClass extends AXNativeClass {
+  axConstruct (self: RefValue, str: string): any {
     return new StringObj(str)
   }
-  axCoerce (v: any, self: AXNativeClass) {
-    if (v && v.native) {
-      return v.native.toString()
+  axCoerce (v: any) {
+    if (v) {
+      return v.toString()
     }
     return v
   }
-  axBox (v: any, self: AXNativeClass) {
-    return self.axNew(v)
+  axBox (v: any) {
+    return this.axNew(v)
   }
 }

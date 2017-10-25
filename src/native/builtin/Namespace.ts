@@ -1,4 +1,4 @@
-import {NativeClass, INativeClass, ApplicationDomain, AXObject, AXNativeClass} from '@/native'
+import {NativeClass, vm, ApplicationDomain, AXNativeClass} from '@/native'
 import {Namespace, NamespaceType} from '@/abc'
 class NamespaceObj extends Namespace {
   constructor (prefixValue?: string, uriValue?: string) {
@@ -12,14 +12,12 @@ class NamespaceObj extends Namespace {
     return this.uri
   }
   valueOf () {
-    console.error('Namespace.valueOf not impl')
+    return this.uri
   }
 }
 @NativeClass('NamespaceClass')
-export class NamespaceClass implements INativeClass {
-  constructor (public self: AXNativeClass) {
-  }
-  axNewNative (self: AXObject, ...args: any[]): any {
-    return new NamespaceObj(...args)
+export class NamespaceClass extends AXNativeClass {
+  axConstruct (self: RefValue, prefixValue?: string, uriValue?: string): any {
+    return new NamespaceObj(prefixValue, uriValue)
   }
 }

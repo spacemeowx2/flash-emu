@@ -1,59 +1,53 @@
-import {NativeClass, INativeClass, AXNativeClass, ApplicationDomain, AXObject, AXNativeObject, Dynamic, dynamicPassError} from '@/native'
+import {NativeClass, NativeAccessor, AXNativeClass, ApplicationDomain, AXClass} from '@/native'
+
 @NativeClass('VectorClass')
-export class VectorClass implements INativeClass {
-  constructor (public self: AXNativeClass) {
-  }
-  axNewNative (self: AXObject, ...args: any[]): any {
+export class VectorClass extends AXNativeClass {
+  axNewNative (): RefValue {
     throw new Error('not imp')
   }
 }
 class ObjectVector extends Array {
-  self: AXObject
+  fuckyou = 1
   toString () {
     return super.toString()
   }
-  dynamic_shouldHandle (k: any) {
-    return typeof k === 'number'
-  }
-  dynamic_set (k: any, v: any) {
-    this[k] = v
-  }
-  dynamic_get (k: any) {
-    return this[k]
-  }
-  dynamic_has (k: any) {
-    return this[k] !== undefined
-  }
-  dynamic_keys () {
-    let out: any[] = []
-    for (let i = 0; i < this.length; i++) {
-      out.push(i)
-    }
-    return out
-  }
-  concat (...args: any[]) {
-    let ret = super.concat(...args)
-    let r: AXNativeObject = this.self.axClass.axNew() as any
-    r.native = ret as any
-    r.native.self = r as any
-    return r as any
-  }
-  reverse () {
-    let ret = super.reverse()
-    let r: AXNativeObject = this.self.axClass.axNew() as any
-    r.native = ret as any
-    r.native.self = r as any
-    return r as any
-  }
 }
 @NativeClass('ObjectVectorClass')
-@Dynamic()
-export class ObjectVectorClass implements INativeClass {
-  constructor (public self: AXNativeClass) {
+export class ObjectVectorClass extends AXNativeClass {
+  constructor (app: ApplicationDomain, public name: string, superCls?: AXClass) {
+    super(app, name, superCls)
+    this.accessor = new NativeAccessor<ObjectVector>({
+      shouldHandle (k: any): boolean {
+        return typeof k === 'number'
+      },
+      set (self: ObjectVector, key: any, value: Value) {
+        self[key] = value
+      },
+      get (self: ObjectVector, key: any): Value {
+        return self[key]
+      },
+      has (self: ObjectVector, key: any): boolean {
+        return self[key] !== undefined
+      },
+      delete (self: ObjectVector, key: any): boolean {
+        return delete self[key]
+      },
+      keys (self: ObjectVector) {
+        let out: any[] = []
+        for (let i = 0; i < self.length; i++) {
+          out.push(i)
+        }
+        return out
+      }
+    })
   }
-  axNewNative (self: AXObject, ...args: any[]): any {
-    const ret = new ObjectVector(...args)
-    ret.self = self
-    return ret
+  axNewNative () {
+    return new ObjectVector()
+  }
+  axConstruct (self: ObjectVector, arrayLength?: number) {
+    if (arrayLength) {
+      self.length = arrayLength
+    }
+    return self
   }
 }

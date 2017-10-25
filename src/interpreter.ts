@@ -1,17 +1,18 @@
 import {Bytecode, OpcodeParam, getBytecodeName} from './ops'
-import {NativeClass, AXNativeObject, AXClass, AXObject} from './native'
+import {NativeClass, AXClass} from './native'
 import {Scope, ApplicationDomain, SecurityDomain, ErrorWrapper, axEquals, axTypeOf, axCoerceString, axConvertString} from './runtime'
 import {Multiname, AbcFile} from './abc'
 import {popManyInto as popMany, BufferReader} from './utils'
 import {Errors} from './error'
 import {Logger} from './logger'
 import {ByteArray} from '@/native/builtin/ByteArray'
+import {vm as valueManager, ValueManager} from './value'
+import {AXGlobalClass} from './base'
 import * as ABC from './abc'
 import * as CONSTANT from './constant'
 const logger = new Logger('Interpreter')
 type Stack = any[]
 type Locals = any[]
-type Value = any
 interface IntParam {
   locals: Locals
   stack: Stack
@@ -22,7 +23,7 @@ interface IntParam {
   b: Value
   args: Value[]
   index: Value
-  receiver: Value
+  receiver: RefValue
   result: Value
   context: Context
   savedScope: Scope
@@ -46,9 +47,11 @@ export class Interpreter {
   psc: WeakMap<ArrayBuffer, number[][]> = new WeakMap()
   callTable: Function[]
   globalStacks: Context[] = []
+  vm: ValueManager
   Errors = Errors;
   [key: number]: any
   constructor () {
+    this.vm = valueManager
     this.callTable = []
     let bcs = []
     for (let bc = 0; bc < 0x100; bc++) {
@@ -102,28 +105,36 @@ export class Interpreter {
     value = scopes.topScope().findScopeProperty(rn, bc === Bytecode.FINDPROPSTRICT, false)
     stack.push(value)
   }
-  [Bytecode.CONSTRUCT] ({receiver, locals, stack, bc, u30, args}: IntParam) {
+  [Bytecode.CONSTRUCT] ({app, receiver, locals, stack, bc, u30, args}: IntParam) {
     this.popManyInto(stack, u30(), args)
     receiver = stack.pop()
-    stack.push(receiver.axNew(...args))
+    if (!receiver) {
+      app.throwError('ReferenceError', this.Errors.ConstructOfNonFunctionError)
+    }
+    stack.push((receiver as AXClass).axNew(...args))
   }
-  [Bytecode.CONSTRUCTPROP] ({receiver,abc, index, rn, args, locals, stack, bc, u30}: IntParam) {
+  [Bytecode.CONSTRUCTPROP] ({app, value, receiver, abc, index, rn, args, stack, u30}: IntParam) {
     index = u30()
     this.popManyInto(stack, u30(), args)
     this.popNameInto(stack, abc.getMultiname(index), rn)
     receiver = stack.pop()
-    stack.push(receiver.axConstructProperty(rn, args))
+    value = this.vm.getProperty(receiver, rn)
+    if (!value) {
+      app.throwError('ReferenceError', this.Errors.ConstructOfNonFunctionError)
+    }
+    stack.push((value as AXClass).axNew(...args))
   }
   [Bytecode.CONSTRUCTSUPER] ({savedScope, receiver, args, locals, stack, bc, u30}: IntParam) {
     this.popManyInto(stack, u30(), args)
     receiver = stack.pop();
-    (savedScope.object as AXClass).axSuperNew(receiver, ...args)
+    (savedScope.object as AXClass).axSuperConstruct(receiver, ...args)
   }
   [Bytecode.CALL] ({object, value, args, locals, stack, bc, u30}: IntParam) {
     this.popManyInto(stack, u30(), args)
     object = stack.pop()
     value = stack[stack.length - 1]
-    stack[stack.length - 1] = (value as AXObject).axCallProperty(this.getPublicMultiname('call'), [object, ...args])
+    // stack[stack.length - 1] = (value as AXObject).axCallProperty(this.getPublicMultiname('call'), [object, ...args])
+    stack[stack.length - 1] = (value as Function).call(object, ...args)
   }
   [Bytecode.CALLSUPER] (intParam: IntParam) {
     return this[Bytecode.CALLSUPERVOID](intParam)
@@ -134,7 +145,7 @@ export class Interpreter {
     this.popManyInto(stack, argCount, args)
     this.popNameInto(stack, abc.getMultiname(index), rn)
     receiver = stack.pop()
-    result = receiver.axCallSuper(rn, savedScope, args)
+    result = this.vm.callSuper(receiver, rn, savedScope, args)
     if (bc !== Bytecode.CALLSUPERVOID) {
       stack.push(result)
     }
@@ -162,13 +173,14 @@ export class Interpreter {
     this.popManyInto(stack, argCount, args)
     this.popNameInto(stack, abc.getMultiname(index), rn)
     receiver = stack[stack.length - 1]
-    if (!receiver || !(this.instanceofAXObject(receiver))) {
+    if (this.vm.isPrimitive(receiver)) {
       receiver = sec.box(receiver)
       if (!receiver) {
         app.throwError('ReferenceError', this.Errors.NotImplementedError, 1, 2)
       }
     }
-    result = receiver.axCallProperty(rn, args, bc === Bytecode.CALLPROPLEX)
+    // result = receiver.axCallProperty(rn, args, bc === Bytecode.CALLPROPLEX)
+    result = this.vm.callProperty(receiver, rn, args)
     if (bc === Bytecode.CALLPROPVOID) {
       stack.length--
     } else {
@@ -216,14 +228,14 @@ export class Interpreter {
   [Bytecode.SETSLOT] ({value, stack, receiver, u30}: IntParam) {
     value = stack.pop()
     receiver = stack.pop()
-    receiver.axSetSlot(u30(), value)
+    this.vm.setSlot(receiver, u30(), value)
   }
   [Bytecode.PUSHBYTE] ({stack, s8}: IntParam) {
     stack.push(s8())
   }
   [Bytecode.ADD] ({a, b, value, locals, stack, bc, u30}: IntParam) {
-    b = stack.pop()
-    a = stack.pop()
+    b = stack.pop() as number
+    a = stack.pop() as number
     value = a + b
     stack.push(value)
   }
@@ -255,64 +267,64 @@ export class Interpreter {
     stack[stack.length - 2] = stack[stack.length - 2] >= stack.pop()
   }
   [Bytecode.IFLE] ({stack, a, b, s24, pc, offset}: IntParam) {
-    b = stack.pop()
-    a = stack.pop()
+    b = stack.pop() as number
+    a = stack.pop() as number
     offset = s24()
     if (a <= b) {
       pc(offset)
     }
   }
   [Bytecode.IFNLT] ({a, b, stack, s24, offset, pc}: IntParam) {
-    b = stack.pop()
-    a = stack.pop()
+    b = stack.pop() as number
+    a = stack.pop() as number
     offset = s24()
     if (!(a < b)) {
       pc(offset)
     }
   }
   [Bytecode.IFGE] ({a, b, stack, s24, offset, pc}: IntParam) {
-    b = stack.pop()
-    a = stack.pop()
+    b = stack.pop() as number
+    a = stack.pop() as number
     offset = s24()
     if (a >= b) {
       pc(offset)
     }
   }
   [Bytecode.IFGT] ({offset, stack, a, b, s24, pc}: IntParam) {
-    b = stack.pop()
-    a = stack.pop()
+    b = stack.pop() as number
+    a = stack.pop() as number
     offset = s24()
     if (a > b) {
       pc(offset)
     }
   }
   [Bytecode.IFNGT] ({offset, stack, a, b, s24, pc}: IntParam) {
-    b = stack.pop()
-    a = stack.pop()
+    b = stack.pop() as number
+    a = stack.pop() as number
     offset = s24()
     if (!(a > b)) {
       pc(offset)
     }
   }
   [Bytecode.IFNGE] ({offset, stack, a, b, s24, pc}: IntParam) {
-    b = stack.pop()
-    a = stack.pop()
+    b = stack.pop() as number
+    a = stack.pop() as number
     offset = s24()
     if (!(a >= b)) {
       pc(offset)
     }
   }
   [Bytecode.IFLT] ({offset, stack, a, b, s24, pc}: IntParam) {
-    b = stack.pop()
-    a = stack.pop()
+    b = stack.pop() as number
+    a = stack.pop() as number
     offset = s24()
     if (a < b) {
       pc(offset)
     }
   }
   [Bytecode.IFNE] ({offset, stack, a, b, s24, pc}: IntParam) {
-    b = stack.pop()
-    a = stack.pop()
+    b = stack.pop() as number
+    a = stack.pop() as number
     offset = s24()
     if (!this.axEquals(a, b)) {
       pc(offset)
@@ -324,7 +336,7 @@ export class Interpreter {
   }
   [Bytecode.GETSLOT] ({receiver, stack, result, u30}: IntParam) {
     receiver = stack.pop()
-    result = receiver.axGetSlot(u30())
+    result = this.vm.getSlot(receiver, u30())
     stack.push(result)
   }
   [Bytecode.LABEL] ({locals, stack, bc, u30}: IntParam) {
@@ -363,14 +375,14 @@ export class Interpreter {
   [Bytecode.GETPROPERTY] ({receiver, sec, app, result, abc, stack, rn, u30}: IntParam) {
     this.popNameInto(stack, abc.getMultiname(u30()), rn)
     receiver = stack.pop()
-    if (!(this.instanceofAXObject(receiver))) {
+    if (this.vm.isPrimitive(receiver)) {
       receiver = sec.box(receiver)
     }
     if (!receiver) {
       // logger.error('GETPROPERTY receiver undefined', rn.name)
       app.throwError('ReferenceError', this.Errors.UndefinedVarError, rn.name)
     }
-    result = receiver.axGetProperty(rn)
+    result = this.vm.getProperty(receiver, rn)
     if (result === undefined || result === null) {
       // logger.error('GET "undefined"', receiver.axClass.name, rn.name, result)
     }
@@ -379,38 +391,41 @@ export class Interpreter {
   [Bytecode.DELETEPROPERTY] ({locals, stack, abc, u30, rn, receiver}: IntParam) {
     this.popNameInto(stack, abc.getMultiname(u30()), rn)
     receiver = stack.pop()
-    stack.push(receiver.axDeleteProperty(rn))
+    stack.push(this.vm.deleteProperty(receiver, rn))
   }
   [Bytecode.NEWCLASS] ({locals, stack, value, app, abc, scopes, u30}: IntParam) {
     value = stack.pop()
     value = app.createClass(
       abc.getClass(u30()),
-      value,
+      value as AXClass,
       scopes.topScope()
     )
     stack.push(value)
   }
   [Bytecode.GETLEX] ({locals, stack, rn, object, result, scopes, u30, abc}: IntParam) {
     this.popNameInto(stack, abc.getMultiname(u30()), rn)
-    object = scopes.topScope().findScopeProperty(rn, true, false)
-    result = object.axGetProperty(rn)
+    object = scopes.topScope().findScopeProperty(rn, true, false) as RefValue
+    result = this.vm.getProperty(object, rn)
     stack.push(result)
   }
   [Bytecode.POPSCOPE] ({scopes}: IntParam) {
     scopes.pop()
   }
-  [Bytecode.INITPROPERTY] (intParam: IntParam) {
-    return this[Bytecode.SETPROPERTY](intParam)
+  [Bytecode.INITPROPERTY] ({locals, stack, rn, abc, value, receiver, bc, u30}: IntParam) {
+    value = stack.pop()
+    this.popNameInto(stack, abc.getMultiname(u30()), rn)
+    receiver = stack.pop()
+    this.vm.initProperty(receiver, rn, value)
+    if (this.instanceofAXClass(value)) {
+      // logger.error('new class:', value.classInfo.holderTraitName.name, rn.name)
+      (value as AXClass).setName(rn)
+    }
   }
   [Bytecode.SETPROPERTY] ({locals, stack, rn, abc, value, receiver, bc, u30}: IntParam) {
     value = stack.pop()
     this.popNameInto(stack, abc.getMultiname(u30()), rn)
-    receiver = stack.pop() as AXObject
-    receiver.axSetProperty(rn, value, bc === Bytecode.INITPROPERTY)
-    if (this.instanceofAXClass(value)) {
-      // logger.error('new class:', value.classInfo.holderTraitName.name, rn.name)
-      value.setName(rn)
-    }
+    receiver = stack.pop()
+    this.vm.setProperty(receiver, rn, value)
     // if (value === undefined || value === null) {
     //   logger.error('SET "undefined"', receiver.axClass.name, rn.name)
     // }
@@ -425,10 +440,10 @@ export class Interpreter {
     stack.push(null)
   }
   [Bytecode.NEWARRAY] ({locals, stack, app, object, u30, argCount}: IntParam) {
-    object = this.getPublicClass(app, 'Array').axNew() as AXNativeObject
+    object = this.getPublicClass(app, 'Array').axNew()
     argCount = u30()
     for (let i = stack.length - argCount; i < stack.length; i++) {
-      object.native.push(stack[i])
+      (object as any).push(stack[i])
     }
     stack.length -= argCount
     stack.push(object)
@@ -485,23 +500,23 @@ export class Interpreter {
   [Bytecode.COERCE] ({locals, stack, abc, rn, scopes, receiver, u30}: IntParam) {
     this.popNameInto(stack, abc.getMultiname(u30()), rn)
     receiver = scopes.topScope().getScopeProperty(rn, true, false)
-    stack[stack.length - 1] = receiver.axCoerce(stack[stack.length - 1])
+    stack[stack.length - 1] = (receiver as AXClass).axCoerce(stack[stack.length - 1])
   }
   [Bytecode.COERCE_S] ({locals, stack, bc, u30}: IntParam) {
     stack[stack.length - 1] = this.axCoerceString(stack[stack.length - 1])
   }
   [Bytecode.APPLYTYPE] ({locals, stack, args, app, u30}: IntParam) {
     this.popManyInto(stack, u30(), args)
-    stack[stack.length - 1] = app.applyType(stack[stack.length - 1], args)
+    stack[stack.length - 1] = app.applyType(stack[stack.length - 1], args as AXClass[])
   }
   [Bytecode.ISTYPELATE] ({stack, receiver}: IntParam) {
     receiver = stack.pop()
-    stack[stack.length - 1] = receiver.axIsType(stack[stack.length - 1])
+    stack[stack.length - 1] = (receiver as AXClass).axIsType(stack[stack.length - 1])
   }
   [Bytecode.ASTYPELATE] ({value, stack, receiver, u30}: IntParam) {
     receiver = stack.pop()
     value = stack.pop()
-    if (!receiver.axIsType(value)) {
+    if (!(receiver as AXClass).axIsType(value)) {
       value = null
     }
     stack.push(value)
@@ -510,13 +525,14 @@ export class Interpreter {
     stack.push(app.createCatch(methodBody.exception[u30()], scopes.topScope()))
   }
   [Bytecode.NEWOBJECT] ({locals, stack, object, value, app, argCount, u30}: IntParam) {
-    object = this.getPublicClass(app, 'Object').axNew()
+    object = this.getPublicClass(app, 'Object').axNew() as RefValue
     argCount = u30()
     // For LIFO-order iteration to be correct, we have to add items highest on the stack
     // first.
     for (let i = stack.length - argCount * 2; i < stack.length; i += 2) {
       value = stack[i + 1]
-      object.axSetProperty(this.getPublicMultiname(stack[i]), value, true)
+      // object.axSetProperty(this.getPublicMultiname(stack[i]), value, true)
+      this.vm.setProperty(object, this.getPublicMultiname(stack[i]), value)
     }
     stack.length -= argCount * 2
     stack.push(object)
@@ -580,23 +596,23 @@ export class Interpreter {
   [Bytecode.HASNEXT2] ({a, b, result, value, locals, stack, object, index, u30}: IntParam) {
     a = u30() // objectIndex
     b = u30() // indebxIndex
-    object = locals[a] as AXObject
-    index = locals[b]
-    result = object.axGetEnumerableKeys()
-    value = index < result.length
+    object = locals[a] as RefValue
+    index = locals[b] as number
+    result = this.vm.getEnumerableKeys(object)
+    value = index < (result as string[]).length
     locals[b] = index + 1
     stack.push(value)
   }
   [Bytecode.NEXTNAME] ({receiver, stack, index}: IntParam) {
-    index = stack.pop()
-    receiver = stack.pop() as AXObject
-    stack.push(receiver.axGetEnumerableKeys()[index - 1])
+    index = stack.pop() as number
+    receiver = stack.pop()
+    stack.push(this.vm.getEnumerableKeys(receiver)[index - 1])
   }
   [Bytecode.NEXTVALUE] ({receiver, stack, index}: IntParam) {
-    index = stack.pop()
-    receiver = stack.pop() as AXObject
-    index = receiver.axGetEnumerableKeys()[index - 1]
-    stack.push(receiver.axGetProperty(this.getPublicMultiname(index)))
+    index = stack.pop() as number
+    receiver = stack.pop()
+    index = this.vm.getEnumerableKeys(receiver)[index - 1]
+    stack.push(this.vm.getProperty(receiver, this.getPublicMultiname(index)))
   }
   [Bytecode.CHECKFILTER] ({locals, stack, bc, u30}: IntParam) {
     //
@@ -606,7 +622,7 @@ export class Interpreter {
     if (rn.name === undefined) {
       rn.name = '*'
     }
-    result = this.getPublicClass(app, 'Array').axNew() as AXNativeObject
+    result = this.getPublicClass(app, 'Array').axNew()
     // result = axGetDescendants(stack[stack.length - 1], rn)
     stack[stack.length - 1] = result
   }
@@ -630,53 +646,53 @@ export class Interpreter {
   }
   [Bytecode.SI8] ({stack, a, domainMemory}: IntParam) {
     a = stack.pop()
-    domainMemory.u8view[a] = stack.pop()
+    domainMemory.u8view[a as number] = stack.pop()
   }
   [Bytecode.SI16] ({stack, a, value, domainMemory}: IntParam) {
     a = stack.pop()
     value = stack.pop()
-    domainMemory.view.setUint16(a, value, true)
+    domainMemory.view.setUint16(a as number, value as number, true)
   }
   [Bytecode.SI32] ({stack, a, value, domainMemory}: IntParam) {
     a = stack.pop()
     value = stack.pop()
-    domainMemory.view.setInt32(a, value, true)
+    domainMemory.view.setInt32(a as number, value as number, true)
   }
   [Bytecode.SF64] ({stack, a, value, domainMemory}: IntParam) {
     a = stack.pop()
     value = stack.pop()
-    domainMemory.view.setFloat64(a, value, true)
+    domainMemory.view.setFloat64(a as number, value as number, true)
   }
   [Bytecode.LI8] ({stack, a, value, domainMemory}: IntParam) {
     stack[stack.length - 1] = domainMemory.u8view[stack[stack.length - 1]]
   }
   [Bytecode.LI16] ({stack, a, value, domainMemory}: IntParam) {
     a = stack.pop()
-    value = domainMemory.view.getUint16(a, true)
+    value = domainMemory.view.getUint16(a as number, true)
     stack.push(value)
   }
   [Bytecode.LI32] ({stack, a, value, domainMemory}: IntParam) {
     a = stack.pop()
-    value = domainMemory.view.getInt32(a, true)
+    value = domainMemory.view.getInt32(a as number, true)
     stack.push(value)
   }
   [Bytecode.LF32] ({stack, a, value, domainMemory}: IntParam) {
     a = stack.pop()
-    value = domainMemory.view.getFloat32(a, true)
+    value = domainMemory.view.getFloat32(a as number, true)
     stack.push(value)
   }
   [Bytecode.LF64] ({stack, a, value, domainMemory}: IntParam) {
     a = stack.pop()
-    value = domainMemory.view.getFloat64(a, true)
+    value = domainMemory.view.getFloat64(a as number, true)
     stack.push(value)
   }
   [Bytecode.SXI8] ({stack, value}: IntParam) {
-    value = stack.pop()
+    value = stack.pop() as number
     value = value << 24 >> 24
     stack.push(value)
   }
   [Bytecode.SXI16] ({stack, value}: IntParam) {
-    value = stack.pop()
+    value = stack.pop() as number
     value = value << 16 >> 16
     stack.push(value)
   }
@@ -689,6 +705,9 @@ export class Interpreter {
   popNameInto (stack: any[], mn: ABC.Multiname, rn: ABC.Multiname) {
     rn._mangledName = null
     rn.kind = mn.kind
+    if (rn.kind === CONSTANT.MTypename) {
+      rn.params = mn.params
+    }
     if (mn.isRuntimeName()) {
       let name = stack.pop()
       // Unwrap content script-created QName instances.
@@ -697,7 +716,6 @@ export class Interpreter {
         rn.kind = mn.isAttribute() ? CONSTANT.RTQNameLA : CONSTANT.RTQNameL
         rn.name = name.name
         rn.nsSet = name.nsSet
-        unwrapNsset(rn)
         return
       }
       rn.name = name
@@ -710,7 +728,6 @@ export class Interpreter {
     } else {
       rn.nsSet = mn.nsSet
     }
-    unwrapNsset(rn)
   }
   popManyInto (src: any[], count: number, dst: any[]) {
     popMany(src, count, dst)
@@ -740,20 +757,8 @@ export class Interpreter {
   newScopeStack (parentScope: Scope) {
     return new ScopeStack(parentScope)
   }
-  newContext (self: any, methodBody: ABC.MethodBodyInfo, savedScope: Scope, callArgs:  any[], callee: any) {
+  newContext (self: any, methodBody: ABC.MethodBodyInfo, savedScope: Scope, callArgs: any[], callee: any) {
     return new Context(self, methodBody, savedScope, callArgs, callee)
-  }
-  function2str (func: Function) {
-    let code = func.toString()
-    let ret = /[\s\S]*?\([\s\S]*?\)[\s\S]*?\{([\s\S]*)\}/.exec(code)
-    code = ret[1]
-    code = code.replace(/Bytecode\.(\w+)/g, (substr: string, ...args: any[]) => {
-      return Bytecode[args[0]]
-    })
-    return code
-  }
-  instanceofAXObject (v: any) {
-    return v instanceof AXObject
   }
   instanceofAXClass (v: any) {
     return v instanceof AXClass
@@ -907,7 +912,7 @@ export class Interpreter {
     if (this.globalStacks.length === 0) {
       return null
     }
-    let globalObject = this.globalStacks[this.globalStacks.length - 1].scopes.topScope().global.object
+    let globalObject = this.globalStacks[this.globalStacks.length - 1].scopes.topScope().global.object as AXGlobalClass
     return globalObject.app
   }
 }
@@ -957,23 +962,7 @@ class ScopeStack {
     return parent
   }
 }
-export class Compiler {
 
-}
-
-function unwrapNsset (rn: ABC.Multiname) {
-  if (rn.nsSet) {
-    rn.nsSet = rn.nsSet.map(ns => {
-      if (ns instanceof AXNativeObject) {
-        return ns.native as any
-      } else if (ns instanceof ABC.Namespace) {
-        return ns
-      } else {
-        throw new Error('unwrapNsset: Type error')
-      }
-    })
-  }
-}
 interface IHasNext2Info {
   next: () => boolean,
   names: string[]

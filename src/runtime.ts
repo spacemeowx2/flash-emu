@@ -1,15 +1,16 @@
 import * as CONSTANT from './constant'
 import * as ABC from './abc'
 import {NamespaceType, TRAIT} from './constant'
-import {Multiname, Namespace, RuntimeTraitInfo} from './abc'
+import {Multiname, Namespace} from './abc'
 import {Errors, IErrorMessage} from './error'
 import {popManyInto} from './utils'
 import {Interpreter} from './interpreter'
 import FlashEmu from './flashemu'
-import {AXObject, AXClass, AXGlobalBase, applyTraits, AXNativeClass, AXNativeObject, AXDynamicNativeClass} from './base'
-import {getNativeFunction, getMethodOrAccessorNative, newNativeInstance, getNativeAXClass} from './native'
+import {AXClass, AXGlobal, AXGlobalClass, AXNativeClass} from './base'
+import {getNativeFunction, getMethodOrAccessorNative, getNativeAXClass} from './native'
 import {FunctionObj} from '@/native/builtin/Function'
 import {ByteArray} from '@/native/builtin/ByteArray'
+import {vm, RuntimeTraits, RuntimeTraitInfo} from './value'
 
 import {Logger} from './logger'
 const logger = new Logger('Runtime')
@@ -21,7 +22,7 @@ export const enum ScriptInfoState {
 }
 interface IScriptRuntime {
   state: ScriptInfoState
-  global: AXGlobalBase
+  global: AXGlobal
 }
 function isEmptyMethod (code: ArrayBuffer) {
   let view = new Uint8Array(code)
@@ -72,7 +73,7 @@ export class ApplicationDomain {
     }
     this.abcs.push(abc)
   }
-  findProperty (mn: Multiname, strict: boolean, execute: boolean): AXObject {
+  findProperty (mn: Multiname, strict: boolean, execute: boolean): RefValue {
     const cache = this.findPropertyCache
     let script = cache.get(mn.mangledName)
     if (!script) {
@@ -93,7 +94,7 @@ export class ApplicationDomain {
     }
     let global = this.findProperty(mn, strict, execute)
     if (global) {
-      return global.axGetProperty(mn)
+      return vm.getProperty(global, mn)
     }
     return null
   }
@@ -144,15 +145,12 @@ export class ApplicationDomain {
     return global
   }
   createGlobal (script: ABC.ScriptInfo) {
-    const AXGlobalClass = new AXClass(this, null)
-    AXGlobalClass.name = `ScriptGlobal${script.getID()}`
-    const AXGlobal = class extends AXGlobalBase {
-      constructor (app: ApplicationDomain) {
-        super(AXGlobalClass, app)
-      }
-    }
-    let global = new AXGlobal(this)
-    applyTraits(global, script.trait, global.scope)
+    const name = `ScriptGlobal${script.getID()}`
+    const scope = new Scope(null, null)
+    const globalClass = new AXGlobalClass(this, name)
+    globalClass.setPrototypeTrait(script.trait, scope)
+    const global: AXGlobal = globalClass.axNew(this, name, scope) as any
+    scope.object = global
     return global
   }
   throwError (type: string, error: IErrorMessage, ...args: any[]) {
@@ -179,49 +177,15 @@ export class ApplicationDomain {
     }
     let classScope = new Scope(scope, axClass)
 
-    axClass.classInfo = newCls
     axClass.applyClass(newCls, classScope)
-    if (axClass instanceof AXNativeClass) {
-      if (axClass.native && axClass.native._onPrototype) {
-        axClass.native._onPrototype(axClass.prototype, axClass)
-      }
-    }
 
-    let nativeClass: AXNativeClass = null
-    for (let cur = axClass; cur; cur = cur.superCls) {
-      if (cur instanceof AXNativeClass) {
-        if (cur.nativeName !== 'ObjectClass') {
-          nativeClass = cur
-          break
-        }
+    axClass.instInit = function (this: RefValue, ...args: any[]) {
+      const bin = axClass.bin
+      if (bin) {
+        // logger.error('iinit', axClass.name)
+        this.buf = bin.slice(0, bin.byteLength)
       }
-    }
-
-    const construct = !!meta
-    if (construct) {
-      axClass.iinit = function (this: AXObject, ...args: any[]) {
-        if (this instanceof AXObject) {
-          let self = this as AXNativeObject
-          if (!self.native) {
-            self.native = newNativeInstance(this, meta.get('cls'), ...args)
-          }
-        } else {
-          logger.error(`iinit's this is not instanceof AXObject`)
-        }
-      }
-    } else {
-      axClass.iinit = function (this: AXObject, ...args: any[]) {
-        let self = this as AXNativeObject
-        if (nativeClass && !self.native) {
-          self.native = newNativeInstance(this, nativeClass.nativeName)
-        }
-        const bin = this.axClass.bin
-        if (bin) {
-          // logger.error('iinit', this.axClass.name)
-          self.native.buf = bin.slice(0, bin.byteLength)
-        }
-        return interpreter.interpret(this, instance.iinit, classScope, args, null)
-      }
+      return interpreter.interpret(this, instance.iinit, classScope, args, null)
     }
 
     let initBody = newCls.cinit.getBody()
@@ -230,14 +194,14 @@ export class ApplicationDomain {
     }
     return axClass
   }
-  createActivation (methodInfo: ABC.MethodInfo, scope: Scope): AXObject {
+  createActivation (methodInfo: ABC.MethodInfo, scope: Scope): RefValue {
     const body = methodInfo.getBody()
     let actClass = this.methodActivation.get(methodInfo)
     if (!actClass) {
       actClass = new AXClass(this)
+      actClass.setPrototypeTrait(body.trait, scope)
     }
     let act = actClass.axNew()
-    applyTraits(act, body.trait, scope)
     return act
   }
   createCatch (exceptionInfo: ABC.ExceptionInfo, scope: Scope) {
@@ -245,9 +209,9 @@ export class ApplicationDomain {
 
     if (!catClass) {
       catClass = new AXClass(this)
+      catClass.setPrototypeTrait(exceptionInfo.getTrait(), scope)
     }
     let cat = catClass.axNew()
-    applyTraits(cat, exceptionInfo.getTrait(), scope)
     return cat
   }
   createMethodForTrait (trait: ABC.TraitInfo, scope: Scope) {
@@ -282,6 +246,14 @@ export class ApplicationDomain {
 
     this.triatMethod.set(methodTraitInfo, method)
     return method
+  }
+  boxFunction (fun: Function) {
+    const type = this.system.getClass(Multiname.Public('Function'))
+    if (vm.registerObject(fun, this)) {
+      vm.vPrototype.set(fun, type.prototype)
+      vm.bindTrait(fun, type.instTrait)
+    }
+    return fun
   }
   applyType (axClass: AXClass, types: AXClass []) {
     // types = types.concat()
@@ -318,11 +290,11 @@ export class SecurityDomain {
   constructor (public flashEmu: FlashEmu) {
     this.system = new ApplicationDomain(this, null)
     this.apps = [this.system]
+
     this.vectorClasses = new WeakMap()
     this.AXClass = getNativeAXClass(this.system, 'Class', null)
-    this.AXClass.axClass = this.AXClass
+    vm.setClass(this.AXClass, this.AXClass)
     this.AXObject = getNativeAXClass(this.system, 'ObjectClass', null)
-    this.AXObject.iinit = () => null
 
     this.AXString = getNativeAXClass(this.system, 'StringClass', this.AXObject)
     this.AXArray = getNativeAXClass(this.system, 'ArrayClass', this.AXObject)
@@ -341,19 +313,14 @@ export class SecurityDomain {
   }
   createFunction (methodInfo: ABC.MethodInfo, scope: Scope, hasDynamicScope?: boolean) {
     const interpreter = this.flashEmu.interpreter
-    let axFunc: AXObject
     let fun: FunctionCall = function (...args: any[]): any {
-      return interpreter.interpret(this, methodInfo, scope, args, axFunc)
+      return interpreter.interpret(this, methodInfo, scope, args, fun)
     }
-    axFunc = wrapFunction(this, fun)
-    return axFunc
+    return fun
   }
   box (v: any) {
     // tslint:disable-next-line:triple-equals
     if (v == undefined) { // undefined or null
-      return v
-    }
-    if (v instanceof AXObject) {
       return v
     }
     if (v instanceof Array) {
@@ -373,7 +340,7 @@ export class SecurityDomain {
 
 export class Scope {
   parent: Scope
-  object: AXObject
+  object: RefValue
   isWith: boolean
   global: Scope
   cache: Map<string, any>
@@ -386,7 +353,7 @@ export class Scope {
     this.cache = new Map()
   }
   getScopeProperty(mn: Multiname, strict: boolean, scopeOnly: boolean): any {
-    return this.findScopeProperty(mn, strict, scopeOnly).axGetProperty(mn)
+    return vm.getProperty(this.findScopeProperty(mn, strict, scopeOnly), mn)
   }
   findScopeProperty (mn: Multiname, strict: boolean, scopeOnly: boolean): any {
     let object
@@ -397,7 +364,7 @@ export class Scope {
       }
     }
     if (this.object) {
-      if (this.isWith ? this.object.axHasPropertyInternal(mn) : this.object.traits.getTrait(mn.nsSet, mn.name)) {
+      if (vm.hasPropertyInternal(this.object, mn)) {
         // if (!(this.isWith || mn.isRuntime())) {
         //   this.cache.set(mn, this.object)
         // }
@@ -415,7 +382,7 @@ export class Scope {
       return null
     }
 
-    const globalObject = this.global.object as AXGlobalBase
+    const globalObject = this.global.object as AXGlobalClass
     // Attributes can't be stored on globals or be directly defined in scripts.
     if (mn.isAttribute()) {
       globalObject.app.throwError('ReferenceError', Errors.UndefinedletError, mn.nsSet[0].uri + '.' + mn.name)
@@ -431,7 +398,7 @@ export class Scope {
     // No need to do this for non-strict lookups as we'll end up returning the
     // global anyways.
     if (strict) {
-      if (!globalObject.has(Multiname.PublicMangledName(mn.name))) {
+      if (!vm.hasProperty(globalObject, mn)) {
         // logger.error('multiname: ', mn)
         globalObject.app.throwError('ReferenceError', Errors.UndefinedVarError, mn.nsSet[0].uri + '.' + mn.name)
       }
@@ -478,26 +445,4 @@ export function axCoerceName (x: any): string {
     return 'null'
   }
   return x.toString()
-}
-const wrapedFunction = new WeakMap<SecurityDomain, WeakMap<Function, AXObject>>()
-export function wrapFunction (sec: SecurityDomain, func: any): AXObject {
-  let ret: any
-  if ((func instanceof Function) && !(func instanceof AXObject)) {
-    let map = wrapedFunction.get(sec)
-    if (!map) {
-      wrapedFunction.set(sec, map = new WeakMap())
-    }
-    ret = map.get(func)
-    if (ret) {
-      return ret
-    }
-    const clsFunc = sec.system.getClass(Multiname.Public('Function')) as AXNativeClass
-    ret = clsFunc.axNew();
-    (ret.native as FunctionObj).func = func
-    map.set(func, ret)
-  }
-  ret.call = function (...args: any[]) {
-    return this.native.call(...args)
-  }
-  return ret
 }

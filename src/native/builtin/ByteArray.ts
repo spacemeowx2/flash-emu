@@ -1,5 +1,15 @@
-import {NativeClass, INativeClass, AXNativeClass, ApplicationDomain, AXObject} from '@/native'
+import {NativeClass, AXNativeClass, ApplicationDomain} from '@/native'
 import {encodeUTF8, decodeUTF8} from '@/utils'
+@NativeClass('ByteArrayClass')
+export class ByteArrayClass extends AXNativeClass {
+  axNewNative () {
+    return new ByteArray()
+  }
+  axConstruct (self: RefValue, ...args: any[]): any {
+    //
+  }
+}
+
 export class ByteArray {
   view: DataView
   u8view: Uint8Array
@@ -46,7 +56,9 @@ export class ByteArray {
   }
   readByte () {
     const p = this.movePos(1)
-    return this.view.getInt8(p)
+    const r = this.view.getInt8(p)
+    console.error('readByte', p, r)
+    return r
   }
   readUnsignedByte () {
     const p = this.movePos(1)
@@ -80,7 +92,7 @@ export class ByteArray {
     const p = this.movePos(1)
     this.view.setInt8(p, val)
   }
-  writeBytes ({native: bytes}: {native: ByteArray}, offset = 0, length = 0) {
+  writeBytes (bytes: ByteArray, offset = 0, length = 0) {
     if (!(bytes instanceof ByteArray)) {
       throw new TypeError('writeBytes(bytes)')
     }
@@ -103,7 +115,6 @@ export class ByteArray {
     this.view.setInt32(p, value, this.littleEndian)
   }
   writeUTFBytes (value: string): void {
-    // console.error('writeUTFBytes', value)
     const src = encodeUTF8(value)
     const p = this.movePos(src.byteLength)
     this.u8view.set(src, p)
@@ -126,13 +137,5 @@ export class ByteArray {
   private reset() {
     this.view = new DataView(this.buf)
     this.u8view = new Uint8Array(this.buf)
-  }
-}
-@NativeClass('ByteArrayClass')
-export class ByteArrayClass implements INativeClass {
-  constructor (public self: AXNativeClass) {
-  }
-  axNewNative (self: AXObject, ...args: any[]): any {
-    return new ByteArray(...args)
   }
 }

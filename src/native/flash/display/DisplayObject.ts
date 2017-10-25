@@ -1,10 +1,6 @@
-import {NativeClass, INativeClass, ApplicationDomain, AXObject} from '@/native'
+import {NativeClass, ApplicationDomain} from '@/native'
 import {EventDispatcherClass} from '../events/EventDispatcher'
-@NativeClass('DisplayObjectClass')
+@NativeClass()
 export class DisplayObjectClass extends EventDispatcherClass implements INativeClass {
   self: AXObject
-  stage = true
-  constructor () {
-    super()
-  }
 }

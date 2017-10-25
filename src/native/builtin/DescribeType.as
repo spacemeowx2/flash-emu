@@ -37,7 +37,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-package avmplus
+package flash.utils
 {
     use namespace AS3;
 

@@ -1,30 +1,33 @@
-import {NativeClass, Dynamic, AXNativeClass, INativeClass, ApplicationDomain, AXObject} from '@/native'
+import {vm, NativeClass, AXNativeClass, NativeAccessor, ApplicationDomain, AXClass} from '@/native'
 class Dictionary {
   dict: Map<any, any> | WeakMap<any, any>
   constructor (weakKeys = false) {
     this.dict = new Map()
   }
-  dynamic_shouldHandle (k: any) {
-    return true
-  }
-  dynamic_set (k: any, v: any) {
-    // console.error('Dictionary.set', k, v)
-    return this.dict.set(k, v)
-  }
-  dynamic_get (k: any) {
-    // console.error('Dictionary.get', k)
-    return this.dict.get(k)
-  }
-  dynamic_has (k: any) {
-    return this.dict.has(k)
-  }
 }
 @NativeClass('DictionaryClass')
-@Dynamic()
-export class DictionaryClass implements INativeClass {
-  constructor (public self: AXNativeClass) {
+export class DictionaryClass extends AXNativeClass {
+  constructor (app: ApplicationDomain, public name: string, superCls?: AXClass) {
+    super(app, name, superCls)
+    this.accessor = new NativeAccessor<Dictionary>({
+      shouldHandle (k: any): boolean {
+        return true
+      },
+      set (self: Dictionary, key: any, value: Value) {
+        self.dict.set(key, value)
+      },
+      get (self: Dictionary, key: any): Value {
+        return self.dict.get(key)
+      },
+      has (self: Dictionary, key: any): boolean {
+        return self.dict.has(key)
+      },
+      delete (self: Dictionary, key: any): boolean {
+        return self.dict.delete(key)
+      }
+    })
   }
-  axNewNative (self: AXObject, ...args: any[]): any {
-    return new Dictionary(...args)
+  axConstruct (self: Dictionary, weakKeys = false) {
+    return new Dictionary(weakKeys)
   }
 }

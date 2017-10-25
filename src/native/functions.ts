@@ -1,4 +1,4 @@
-import {NativeFuncClass, NativeFunction, AXObject, Multiname} from '@/native'
+import {NativeFuncClass, NativeFunction, Multiname} from '@/native'
 import {Logger} from '@/logger'
 const trace = new Logger('Trace')
 const logger = new Logger('Functions')
@@ -7,9 +7,6 @@ export class GlobalFunctions extends NativeFuncClass {
   @NativeFunction()
   print (...args: any[]) {
     args = args.map(i => {
-      if (i instanceof AXObject) {
-        return i.callProperty('toString')
-      }
       return i && i.toString()
     })
     trace.log(...args)
