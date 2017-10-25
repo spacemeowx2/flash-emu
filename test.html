@@ -1,0 +1,31 @@
+<html>
+    <head>
+        <title>FlashEmu Test</title>
+        <script src="dist/flashemu.js"></script>
+    </head>
+    <body>
+<script>
+async function main() {
+  FlashEmu.setGlobalFlags({
+    enableDebug: true,
+    enableLog: true,
+    enableWarn: true,
+    enableError: true
+  })
+  let emu = new FlashEmu({
+    async readFile (filename) {
+      const res = await fetch(filename)
+      const buf = await res.arrayBuffer()
+      console.log(buf)
+      return new Uint8Array(buf).buffer
+    }
+  })
+  const swf = 'dist/none.swf'
+  await emu.testswf(swf)
+  window.emu = emu
+  emu = null
+}
+main().catch(e => console.error(e))
+</script>
+    </body>
+</html>
