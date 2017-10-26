@@ -19,6 +19,17 @@
     "flash",
     "swf"
   ],
+  "files":[
+    "dist/*.js",
+    "dist/*.map",
+    "lib/*.abc",
+    "src/",
+    "typeings/",
+    "package.json",
+    "tsconfig.json",
+    "tslint.json",
+    "LICENSE"
+  ],
   "author": "imspace",
   "license": "MIT",
   "devDependencies": {

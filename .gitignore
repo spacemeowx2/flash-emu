@@ -5,3 +5,4 @@ note.md
 lib/
 package-lock.json
 *.bin
+*.tgz
