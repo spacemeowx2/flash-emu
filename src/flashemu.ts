@@ -136,6 +136,9 @@ export default class FlashEmu {
       callback: callback
     })
   }
+  getVM (): ValueManager {
+    return vm
+  }
   async loadSWF (fileName: string) {
     await this.init()
     const stream = await this.fi.readFile(fileName)

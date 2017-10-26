@@ -2,7 +2,8 @@
   "name": "flash-emu",
   "version": "2.0.0",
   "description": "ActionScript Virtual Machine 2",
-  "main": "index.js",
+  "main": "./dist/flashemu.js",
+  "types": "flashemu.d.ts",
   "scripts": {
     "dev": "rollup -w -c ./build/dev.rollup.config.js -o dist/flashemu.js",
     "build": "rollup -c ./build/build.rollup.config.js -o dist/flashemu.js",
@@ -28,10 +29,15 @@
     "package.json",
     "tsconfig.json",
     "tslint.json",
-    "LICENSE"
+    "LICENSE",
+    "flashemu.d.ts"
   ],
   "author": "imspace",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/spacemeowx2/flash-emu"
+  },
   "devDependencies": {
     "@types/mocha": "^2.2.41",
     "@types/node": "^8.0.19",
