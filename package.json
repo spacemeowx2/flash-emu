@@ -1,6 +1,6 @@
 {
   "name": "flash-emu",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "ActionScript Virtual Machine 2",
   "main": "./dist/flashemu.js",
   "types": "flashemu.d.ts",
