@@ -7,7 +7,7 @@ interface IEventDispatcher {
   willTrigger(type: string): boolean
   dispatchEvent(event: Event): boolean
 }
-class EventDispatcher {
+export class EventDispatcher {
   addEventListener (
       type: string, listener: Function, useCapture: boolean,
       priority: number, useWeakReference: boolean) {

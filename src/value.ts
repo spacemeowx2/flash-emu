@@ -447,6 +447,10 @@ export class ValueManager implements IValueManager {
   }
   callProperty (self: RefValue, mn: Multiname, args: Value[]): Value {
     let func = this.getProperty(self, mn) as Function
+    if (!func) {
+      let func = this.getProperty(self, mn) as Function
+      throw new Error(`Can't call property ${mn.name}`)
+    }
     const hookFunc = this.vApp.get(self).sec.flashEmu.hooks.get(mn.name)
     if (hookFunc) {
       func = hookFunc.callback

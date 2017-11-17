@@ -1,6 +1,14 @@
-import {NativeClass, ApplicationDomain} from '@/native'
-import {EventDispatcherClass} from '../events/EventDispatcher'
-@NativeClass()
-export class DisplayObjectClass extends EventDispatcherClass implements INativeClass {
-  self: AXObject
+import {NativeClass, AXNativeClass} from '@/native'
+import {EventDispatcher} from '@/native/flash/events/EventDispatcher'
+class DisplayObject extends EventDispatcher {
+
+}
+@NativeClass('DisplayObjectClass')
+export class DisplayObjectClass extends AXNativeClass {
+  axNewNative () {
+    return new DisplayObject()
+  }
+  axConstruct (self: RefValue): any {
+    //
+  }
 }

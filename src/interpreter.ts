@@ -374,6 +374,9 @@ export class Interpreter {
   }
   [Bytecode.GETPROPERTY] ({receiver, sec, app, result, abc, stack, rn, u30}: IntParam) {
     this.popNameInto(stack, abc.getMultiname(u30()), rn)
+    if (rn.name === 'Sprite') {
+      debugger
+    }
     receiver = stack.pop()
     if (this.vm.isPrimitive(receiver)) {
       receiver = sec.box(receiver)

@@ -2,6 +2,7 @@ import {AbcFile, Namespace, Multiname} from './abc'
 import * as ABC from './abc'
 import {BufferReader} from './utils'
 import {Interpreter} from './interpreter'
+import {Compiler, AVM2} from './compiler'
 import {Scope, ApplicationDomain, SecurityDomain} from './runtime'
 import {Logger, LogFilter, setGlobalFlags, ILoggerFlags} from './logger'
 import {SWFFile, TagType, TagDefineBinaryData, TagDoABC} from './swf'
@@ -223,5 +224,16 @@ export default class FlashEmu {
     logger.error('time:', (new Date()).getTime() - time)
     logger.error(topFunctions(50))
     logger.error(topFunctions(50, 'times'))
+  }
+  async testCompiler (fileName: string) {
+    await this.init()
+    const stream = await this.fi.readFile(fileName)
+    const reader = new BufferReader(stream)
+    let sec = new SecurityDomain(this)
+    let app = sec.createApplicationDomain(null)
+    let abc = new AbcFile(reader, app)
+
+    let compiler = new Compiler(AVM2)
+    logger.log(JSON.stringify(compiler.compile(abc.getMethod(0)), null, 2))
   }
 }

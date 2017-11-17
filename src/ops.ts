@@ -1,5 +1,6 @@
 /* tslint:disable */
 export enum Bytecode {
+  UNKNOWN            = 0x00,
   BKPT               = 0x01,
   NOP                = 0x02,
   THROW              = 0x03,
@@ -269,6 +270,7 @@ export const OpcodeParam = {
   [Bytecode.IFLE]: '2',
   [Bytecode.IFGT]: '2',
   [Bytecode.IFGE]: '2',
+  [Bytecode.IFSTRICTNE]: '2',
   [Bytecode.LOOKUPSWITCH]: 'LOOKUPSWITCH',
   [Bytecode.PUSHBYTE]: '8',
   [Bytecode.PUSHSHORT]: '3',
