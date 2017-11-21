@@ -15,6 +15,8 @@ class ASTBuilder {
     //
   }
   buildIR (block: Block) {
+    let stack = []
+    let locals = []
     for (let ins of block.ins) {
 
     }
@@ -32,10 +34,5 @@ export class Compiler {
     const abc = methodInfo.abc
     const methodBody = methodInfo.getBody()
     return this.arch.getBlocks(methodBody.code)
-  }
-  model () {
-
-  }
-  analyzedControlFlow () {
   }
 }

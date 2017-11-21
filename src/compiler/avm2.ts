@@ -69,6 +69,6 @@ export class AVM2Instruction implements Instruction {
   operand: any[] = []
   bytecode: Bytecode = Bytecode.UNKNOWN
   toJSON (): any {
-    return `${this.offset} ${this.length} ${getBytecodeName(this.bytecode)} ${this.operand.map(i => i.toString()).join(' ')}`
+    return `${this.offset} ${this.length} ${getBytecodeName(this.bytecode)}${this.operand.map(i => ` ${i.toString()}`).join('')}`
   }
 }

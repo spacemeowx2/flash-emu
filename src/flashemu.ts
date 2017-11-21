@@ -164,21 +164,6 @@ export default class FlashEmu {
       this.executeScript()
     }
   }
-  async testswf2 (fileName: string) {
-    await this.loadSWF(fileName)
-    // this.swf.tags = this.swf.tags.filter(t => t.data || t.constructor.name !== 'Tag')
-    this.swf.dropUnusedTags()
-    const doAbc = this.swf.getTags(TagDoABC)
-    for (let abc of doAbc) {
-      this.loadABC(abc.data, this.app)
-    }
-
-    let CModule = this.app.getClass(Multiname.Package('com.adobe.flascc', 'CModule'))
-    CModule.callProperty('startAsync')
-    let check = this.getProperty('MyCPP', 'check')
-    let ret = check.call(check, '123')
-    logger.error(ret)
-  }
   async testswf (fileName: string) {
     let time = (new Date()).getTime()
     await this.loadSWF(fileName)
