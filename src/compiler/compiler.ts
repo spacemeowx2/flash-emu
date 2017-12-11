@@ -6,19 +6,22 @@ import {BufferReader} from '@/utils'
 import {AVM2} from './avm2'
 import {Instruction, Block, BlockMap, Arch} from './arch'
 
-class Expr {
-  //
+export interface Context {
+  stack: any[]
+  regs: any[]
 }
 
 class ASTBuilder {
   constructor () {
     //
   }
-  buildIR (block: Block) {
-    let stack = []
-    let locals = []
+  buildIR (block: Block, {regsCount}: {regsCount: number}) {
+    let context: Context = {
+      stack: [],
+      regs: []
+    }
     for (let ins of block.ins) {
-
+      ins.execute(context)
     }
   }
 }
@@ -33,6 +36,7 @@ export class Compiler {
   compile (methodInfo: ABC.MethodInfo) {
     const abc = methodInfo.abc
     const methodBody = methodInfo.getBody()
-    return this.arch.getBlocks(methodBody.code)
+    // return this.arch.getBlocks(methodBody.code)
+    
   }
 }

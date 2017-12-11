@@ -1,6 +1,7 @@
-import {Arch, Instruction, BlockMap} from './arch'
+import {Arch, Instruction, BlockMap, InsOperation, Context} from './arch'
 import {OpcodeParam, Bytecode, getBytecodeName} from '@/ops'
 import {BufferReader} from '@/utils'
+import * as AST from './ast'
 
 export class AVM2 implements Arch {
   *getIns (reader: BufferReader): IterableIterator<AVM2Instruction> {
@@ -68,7 +69,17 @@ export class AVM2Instruction implements Instruction {
   length: number = -1
   operand: any[] = []
   bytecode: Bytecode = Bytecode.UNKNOWN
+  execute: InsOperation
   toJSON (): any {
     return `${this.offset} ${this.length} ${getBytecodeName(this.bytecode)}${this.operand.map(i => ` ${i.toString()}`).join('')}`
+  }
+}
+class InstructionExecute {
+  [key: number]: InsOperation
+  static [Bytecode.ADD] (c: Context) {
+    c.stack.push(new AST.BinaryExpr(c.stack.pop(), c.stack.pop(), '+'))
+  }
+  static [Bytecode.PUSHUNDEFINED] (c: Context) {
+    return new AST.BinaryExpr(c.stack.pop(), c.stack.pop(), '+')
   }
 }

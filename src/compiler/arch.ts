@@ -1,21 +1,28 @@
 import {BufferReader} from '@/utils'
+import {Context} from './compiler'
+export type InsOperation = (context: Context) => void
 export interface Arch {
   getIns (reader: BufferReader): IterableIterator<Instruction>
   getBlocks (code: ArrayBuffer): BlockMap
 }
+
 export interface Instruction {
   offset: number
   length: number
   operand: any[]
+  execute: InsOperation
   toJSON (): any
 }
 export class Block {
+  id: number
   ins: Instruction[] = []
+  succ: Block[] = []
   constructor (
     public startOffset: number
   ) {}
 }
 export class BlockMap extends Map<number, Block> {
+  private nextID: number = 1
   get (key: number) {
     if (Number.isNaN(key)) {
       debugger
@@ -24,6 +31,7 @@ export class BlockMap extends Map<number, Block> {
       return super.get(key)
     } else {
       const block = new Block(key)
+      block.id = this.nextID++
       super.set(key, block)
       return block
     }
@@ -35,4 +43,7 @@ export class BlockMap extends Map<number, Block> {
     }
     return out
   }
+}
+export {
+  Context
 }
