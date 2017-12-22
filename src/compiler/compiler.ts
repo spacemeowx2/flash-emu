@@ -8,7 +8,7 @@ import {Instruction, Block, BlockMap, Arch} from './arch'
 
 export interface Context {
   stack: any[]
-  regs: any[]
+  local: any[]
 }
 
 class ASTBuilder {
@@ -18,7 +18,7 @@ class ASTBuilder {
   buildIR (block: Block, {regsCount}: {regsCount: number}) {
     let context: Context = {
       stack: [],
-      regs: []
+      local: []
     }
     for (let ins of block.ins) {
       ins.execute(context)

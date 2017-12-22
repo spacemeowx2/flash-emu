@@ -1,5 +1,5 @@
 /* tslint:disable */
-export enum Bytecode {
+export const enum Bytecode {
   UNKNOWN            = 0x00,
   BKPT               = 0x01,
   NOP                = 0x02,
@@ -314,4 +314,6 @@ export const OpcodeParam = {
   [Bytecode.DEBUG]: '33',
   [Bytecode.DEBUGLINE]: '3',
   [Bytecode.DEBUGFILE]: '3'
+} as {
+  [key: number]: string
 }

@@ -2,7 +2,7 @@ import {Arch, Instruction, BlockMap, InsOperation, Context} from './arch'
 import {OpcodeParam, Bytecode, getBytecodeName} from '@/ops'
 import {BufferReader} from '@/utils'
 import * as AST from './ast'
-
+const builder = new AST.ASTBuilder()
 export class AVM2 implements Arch {
   *getIns (reader: BufferReader): IterableIterator<AVM2Instruction> {
     for (;!reader.isEOF();) {
@@ -77,9 +77,24 @@ export class AVM2Instruction implements Instruction {
 class InstructionExecute {
   [key: number]: InsOperation
   static [Bytecode.ADD] (c: Context) {
-    c.stack.push(new AST.BinaryExpr(c.stack.pop(), c.stack.pop(), '+'))
+    c.stack.push(builder.binaryExpress(c.stack.pop(), c.stack.pop(), '+'))
   }
   static [Bytecode.PUSHUNDEFINED] (c: Context) {
-    return new AST.BinaryExpr(c.stack.pop(), c.stack.pop(), '+')
+    c.stack.push(new AST.RefNode(undefined))
+  }
+  static [Bytecode.PUSHBYTE] (c: Context, operand: any[]) {
+    c.stack.push(new AST.RefNode(operand[0]))
+  }
+  static [Bytecode.COERCE_A] (c: Context) {
+    //
+  }
+  static [Bytecode.SETLOCAL1] (c: Context) {
+    c.local[1] = c.stack.pop()
+  }
+  static [Bytecode.SETLOCAL2] (c: Context) {
+    c.local[2] = c.stack.pop()
+  }
+  static [Bytecode.SETLOCAL3] (c: Context) {
+    c.local[3] = c.stack.pop()
   }
 }
