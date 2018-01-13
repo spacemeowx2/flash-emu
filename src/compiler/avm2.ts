@@ -65,36 +65,36 @@ export class AVM2 implements Arch {
   }
 }
 export class AVM2Instruction implements Instruction {
+  [key: number]: InsOperation
   offset: number = -1
   length: number = -1
   operand: any[] = []
   bytecode: Bytecode = Bytecode.UNKNOWN
-  execute: InsOperation
   toJSON (): any {
     return `${this.offset} ${this.length} ${getBytecodeName(this.bytecode)}${this.operand.map(i => ` ${i.toString()}`).join('')}`
   }
-}
-class InstructionExecute {
-  [key: number]: InsOperation
-  static [Bytecode.ADD] (c: Context) {
+  execute (context: Context): void {
+    this[this.bytecode](context)
+  }
+  [Bytecode.ADD] (c: Context) {
     c.stack.push(builder.binaryExpress(c.stack.pop(), c.stack.pop(), '+'))
   }
-  static [Bytecode.PUSHUNDEFINED] (c: Context) {
+  [Bytecode.PUSHUNDEFINED] (c: Context) {
     c.stack.push(new AST.RefNode(undefined))
   }
-  static [Bytecode.PUSHBYTE] (c: Context, operand: any[]) {
-    c.stack.push(new AST.RefNode(operand[0]))
+  [Bytecode.PUSHBYTE] (this: Instruction, c: Context) {
+    c.stack.push(new AST.RefNode(this.operand[0]))
   }
-  static [Bytecode.COERCE_A] (c: Context) {
+  [Bytecode.COERCE_A] (c: Context) {
     //
   }
-  static [Bytecode.SETLOCAL1] (c: Context) {
+  [Bytecode.SETLOCAL1] (c: Context) {
     c.local[1] = c.stack.pop()
   }
-  static [Bytecode.SETLOCAL2] (c: Context) {
+  [Bytecode.SETLOCAL2] (c: Context) {
     c.local[2] = c.stack.pop()
   }
-  static [Bytecode.SETLOCAL3] (c: Context) {
+  [Bytecode.SETLOCAL3] (c: Context) {
     c.local[3] = c.stack.pop()
   }
 }

@@ -1,6 +1,6 @@
 import {BufferReader} from '@/utils'
 import {Context} from './compiler'
-export type InsOperation = (context: Context, operand: any[]) => void
+export type InsOperation = (context: Context) => void
 export interface Arch {
   getIns (reader: BufferReader): IterableIterator<Instruction>
   getBlocks (code: ArrayBuffer): BlockMap
