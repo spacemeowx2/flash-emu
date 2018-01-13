@@ -44,6 +44,3 @@ export class BlockMap extends Map<number, Block> {
     return out
   }
 }
-export {
-  Context
-}

@@ -1,4 +1,6 @@
-import {Program, AST2Code, StatementType, BlockStatement, VariableDeclaration} from './ast'
+import {Program, AST2Code, StatementType, BlockStatement, VariableDeclaration, ExpressionType} from './ast'
+import { Logger } from 'logger'
+const logger = new Logger('ast2js')
 
 type Line = [number, string]
 
@@ -24,16 +26,37 @@ class Lines {
 }
 
 export class AST2JS extends AST2Code {
+  expr (e: ExpressionType): string {
+    const expr = (e: ExpressionType) => this.expr(e)
+    switch (e.type) {
+      case 'UnaryExpression':
+        return e.isPrefix ? `${e.op}(${expr(e.arg)})` : `(${expr(e.arg)})${e.op}`
+      case 'BinaryExpression':
+        return `(${expr(e.left)}) ${e.operator} (${expr(e.right)})`
+      case 'AssignmentExpression':
+        return `${expr(e.left)} ${e.op} ${expr(e.right)}`
+      case 'Identifier':
+        return e.name
+      case 'Literal':
+        return e.str
+      default:
+        logger.error(`Empty expr return ${e.type}`)
+    }
+  }
   stmt (n: StatementType, indent: string): Lines {
+    const expr = (e: ExpressionType) => this.expr(e)
     const stmt = (n: StatementType, indent: string) => this.stmt(n, indent)
     let ret = new Lines(indent)
+    let exp: ExpressionType
     switch (n.type) {
       case 'BlockStatement':
         return ret.add(0, '{')
                   .add(1, n.body.map(i => this.stmt(i, indent)))
                   .add(0, '}')
       case 'VariableDeclaration':
-        return ret.add(0, `let `)
+        return ret.add(0, `let ${n.id.name};`)
+      case 'ExpressionStatement':
+        return ret.add(0, `${expr(n.expression)}`)
     }
     return ret
   }
@@ -42,6 +65,6 @@ export class AST2JS extends AST2Code {
     if (program.type !== 'Program') {
       throw new TypeError('argument must be a Program parse node')
     }
-    return program.body.map(x => this.stmt(x, '  ')).join('')
+    return program.body.map(x => this.stmt(x, '  ')).join('\n')
   }
 }

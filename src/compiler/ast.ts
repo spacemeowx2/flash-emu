@@ -1,15 +1,15 @@
 // http://esprima.org/demo/parse.html#
 // https://developer.mozilla.org/en-US/docs/Mozilla/Projects/SpiderMonkey/Parser_API
 
-type BinOp = '+' | '-' | '*' | '/' | '%' | '^'
-type UnaryOp = '+' | '-' | '!'
-type AssignmentOp = '='
+export type BinOp = '+' | '-' | '*' | '/' | '%' | '^'
+export type UnaryOp = '+' | '-' | '!'
+export type AssignmentOp = '='
 export interface AstNode {
   readonly type: string
 }
 
-export type StatementType = JumpStatement | BlockStatement | VariableDeclaration | JumpStatement
-export type ExpressionType = BinaryExpression | UnaryExpression | AssignmentExpression
+export type StatementType = JumpStatement | BlockStatement | VariableDeclaration | JumpStatement | ExpressionStatement
+export type ExpressionType = BinaryExpression | UnaryExpression | AssignmentExpression | Identifier | Literal
 
 export class RefNode<T> {
   constructor (public value: T) {}
@@ -30,9 +30,32 @@ export abstract class AST2Code {
   }
   abstract toCode (): string
 }
-
+function stringify (value: any) {
+  return JSON.stringify(value)
+}
 export class ASTBuilder {
-  binaryExpress (left: any, right: any, operator: BinOp): BinaryExpression {
+  static instance: ASTBuilder = new ASTBuilder()
+  program (body: StatementType[]): Program {
+    return {
+      type: 'Program',
+      body
+    }
+  }
+  literal (value: any, str?: string): Literal {
+    if (undefined === str) {
+      str = stringify(value)
+    }
+    return {
+      type: 'Literal',
+      value, str
+    }
+  }
+  identifier (name: string): Identifier {
+    return {
+      type: 'Identifier', name
+    }
+  }
+  BinaryExpression (left: any, right: any, operator: BinOp): BinaryExpression {
     return {
       type: 'BinaryExpression',
       left, right, operator
@@ -40,23 +63,29 @@ export class ASTBuilder {
   }
   jumpStatement (target: number): JumpStatement {
     return {
-      type: 'JumpStatement',
-      target
+      type: 'JumpStatement', target
     }
   }
-  unaryExpression (op: UnaryOp, arg: Expression, isPrefix: boolean): UnaryExpression {
+  unaryExpression (op: UnaryOp, arg: ExpressionType, isPrefix: boolean): UnaryExpression {
     return {
       type: 'UnaryExpression',
       op, arg, isPrefix
     }
   }
-  assignmentStatement (op: AssignmentOp, left: Expression, right: Expression): AssignmentExpression {
+  assignmentExpression (op: AssignmentOp, left: ExpressionType, right: ExpressionType): AssignmentExpression {
     return {
       type: 'AssignmentExpression',
       op, left, right
     }
   }
+  expressionStatement (expression: ExpressionType): ExpressionStatement {
+    return {
+      type: 'ExpressionStatement',
+      expression
+    }
+  }
 }
+export const builder = ASTBuilder.instance
 
 export interface Program extends AstNode {
   readonly type: 'Program'
@@ -68,13 +97,16 @@ export interface BlockStatement extends Statement {
   readonly type: 'BlockStatement'
   body: StatementType[]
 }
-export interface ExpressionStatement extends Statement {}
+export interface ExpressionStatement extends Statement {
+  readonly type: 'ExpressionStatement'
+  expression: ExpressionType
+}
 export interface IfStatement extends Statement {}
 export interface LabeledStatement extends Statement {}
 export interface BreakStatement extends Statement {}
 export interface ContinueStatement extends Statement {}
 export interface JumpStatement extends Statement {
-  type: 'JumpStatement'
+  readonly type: 'JumpStatement'
   target: number
 }
 export interface WithStatement extends Statement {}
@@ -88,6 +120,8 @@ export interface ForStatement extends Statement {}
 export interface Declaration extends Statement {}
 export interface VariableDeclaration extends Declaration {
   readonly type: 'VariableDeclaration'
+  id: Identifier
+  init: ExpressionType
 }
 export interface Expression extends AstNode {}
 export interface ThisExpression extends Expression {}
@@ -96,14 +130,15 @@ export interface ObjectExpression extends Expression {}
 export interface FunctionExpression extends Function {}
 export interface UnaryExpression extends Expression {
   readonly type: 'UnaryExpression'
-  op: UnaryOp, arg: Expression, isPrefix: boolean
+  op: UnaryOp, arg: ExpressionType, isPrefix: boolean
 }
 export interface BinaryExpression extends Expression {
   readonly type: 'BinaryExpression'
-  operator: BinOp, left: Expression, right: Expression
+  operator: BinOp, left: ExpressionType, right: ExpressionType
 }
 export interface AssignmentExpression extends Expression {
-  op: AssignmentOp, left: Expression, right: Expression
+  readonly type: 'AssignmentExpression'
+  op: AssignmentOp, left: ExpressionType, right: ExpressionType
 }
 export interface LogicalExpression extends Expression {}
 export interface ConditionalExpression extends Expression {}
@@ -121,5 +156,12 @@ export interface SwitchCase extends AstNode {}
 export interface CatchClause extends AstNode {}
 export interface ComprehensionBlock extends AstNode {}
 export interface ComprehensionIf extends AstNode {}
-export interface Identifier extends AstNode {}
-export interface Literal extends AstNode {}
+export interface Identifier extends AstNode {
+  readonly type: 'Identifier'
+  name: string
+}
+export interface Literal extends AstNode {
+  readonly type: 'Literal'
+  value: any
+  str: string
+}

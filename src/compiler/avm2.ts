@@ -1,8 +1,12 @@
-import {Arch, Instruction, BlockMap, InsOperation, Context} from './arch'
+import {Arch, Instruction, BlockMap, InsOperation} from './arch'
+import {Context} from './compiler'
 import {OpcodeParam, Bytecode, getBytecodeName} from '@/ops'
 import {BufferReader} from '@/utils'
 import * as AST from './ast'
+import { Logger } from 'logger'
 const builder = new AST.ASTBuilder()
+const logger = new Logger('avm2')
+
 export class AVM2 implements Arch {
   *getIns (reader: BufferReader): IterableIterator<AVM2Instruction> {
     for (;!reader.isEOF();) {
@@ -76,25 +80,82 @@ export class AVM2Instruction implements Instruction {
   execute (context: Context): void {
     this[this.bytecode](context)
   }
+  unaryExp (c: Context, op: AST.UnaryOp, isPrefix: boolean) {
+    c.stack.push(builder.unaryExpression(op, c.stack.pop(), isPrefix))
+  }
+  binaryExp (c: Context, op: AST.BinOp) {
+    const b = c.stack.pop()
+    const a = c.stack.pop()
+    c.stack.push(builder.BinaryExpression(a, b, op))
+  }
+  [Bytecode.NOT] (c: Context) {
+    this.unaryExp(c, '!', true)
+  }
   [Bytecode.ADD] (c: Context) {
-    c.stack.push(builder.binaryExpress(c.stack.pop(), c.stack.pop(), '+'))
+    this.binaryExp(c, '+')
+  }
+  [Bytecode.MODULO] (c: Context) {
+    this.binaryExp(c, '%')
+  }
+  [Bytecode.MULTIPLY] (c: Context) {
+    this.binaryExp(c, '*')
+  }
+  [Bytecode.DIVIDE] (c: Context) {
+    this.binaryExp(c, '/')
+  }
+  [Bytecode.POP] (c: Context) {
+    c.stack.pop()
+  }
+  [Bytecode.DUP] (c: Context) {
+    const t = c.stack[c.stack.length - 1]
+    c.stack.push(t)
   }
   [Bytecode.PUSHUNDEFINED] (c: Context) {
-    c.stack.push(new AST.RefNode(undefined))
+    c.stack.push(AST.builder.literal(undefined))
   }
-  [Bytecode.PUSHBYTE] (this: Instruction, c: Context) {
-    c.stack.push(new AST.RefNode(this.operand[0]))
+  [Bytecode.PUSHBYTE] (c: Context) {
+    c.stack.push(AST.builder.literal(this.operand[0]))
   }
-  [Bytecode.COERCE_A] (c: Context) {
+  [Bytecode.KILL] () {
     //
   }
+  [Bytecode.LABEL] () {
+    //
+  }
+  [Bytecode.COERCE_A] () {
+    //
+  }
+  [Bytecode.SETLOCAL0] (c: Context) {
+    c.local.set(0, c.stack.pop())
+  }
   [Bytecode.SETLOCAL1] (c: Context) {
-    c.local[1] = c.stack.pop()
+    c.local.set(1, c.stack.pop())
   }
   [Bytecode.SETLOCAL2] (c: Context) {
-    c.local[2] = c.stack.pop()
+    c.local.set(2, c.stack.pop())
   }
   [Bytecode.SETLOCAL3] (c: Context) {
-    c.local[3] = c.stack.pop()
+    c.local.set(3, c.stack.pop())
+  }
+  [Bytecode.SETLOCAL] (c: Context) {
+    c.local.set(this.operand[0], c.stack.pop())
+  }
+  [Bytecode.GETLOCAL0] (c: Context) {
+    c.stack.push(c.local.get(0))
+  }
+  [Bytecode.GETLOCAL1] (c: Context) {
+    c.stack.push(c.local.get(1))
+  }
+  [Bytecode.GETLOCAL2] (c: Context) {
+    c.stack.push(c.local.get(2))
+  }
+  [Bytecode.GETLOCAL3] (c: Context) {
+    c.stack.push(c.local.get(3))
+  }
+  [Bytecode.GETLOCAL] (c: Context) {
+    c.stack.push(c.local.get(this.operand[0]))
+  }
+  [Bytecode.JUMP] (c: Context) {
+    //
   }
 }
