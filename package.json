@@ -20,7 +20,7 @@
     "flash",
     "swf"
   ],
-  "files":[
+  "files": [
     "dist/*.js",
     "dist/*.map",
     "lib/*.abc",
