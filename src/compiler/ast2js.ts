@@ -57,6 +57,17 @@ export class AST2JS extends AST2Code {
         return ret.add(0, `let ${n.id.name};`)
       case 'ExpressionStatement':
         return ret.add(0, `${expr(n.expression)}`)
+      case 'IfStatement':
+        ret = ret.add(0, `if (${expr(n.test)})`)
+                 .add(n.consequent.type === 'BlockStatement' ? 0 : 1, stmt(n.consequent, indent))
+        if (n.alternate) {
+          ret = ret.add(0, `else ${stmt(n.alternate, indent)}`)
+        }
+        return ret
+      case 'JumpStatement':
+        return ret.add(0, `goto label${n.target}`)
+      default:
+        logger.error(`Empty stmt return ${n.type}`)
     }
     return ret
   }

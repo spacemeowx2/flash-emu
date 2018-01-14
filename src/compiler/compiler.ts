@@ -11,8 +11,9 @@ import { AST2JS } from 'compiler/ast2js';
 const logger = new Logger('Compiler')
 
 export interface Context {
-  stack: any[]
+  stack: AST.ExpressionType[]
   local: ObservableArray<any>
+  pushNode (stmt: AST.StatementType): void
 }
 interface KVListener<K, T> {
   onSet? (key: K, value: T): void
@@ -55,7 +56,6 @@ export class Compiler {
   compile (methodInfo: ABC.MethodInfo) {
     const abc = methodInfo.abc
     const methodBody = methodInfo.getBody()
-    // return this.arch.getBlocks(methodBody.code)
     const blocks = this.arch.getBlocks(methodBody.code)
     // logger.error(JSON.stringify(blocks, null, 2))
     const block = blocks.get(18)
@@ -73,10 +73,22 @@ export class Compiler {
       locals.push(builder.identifier(`loc${i}`))
     }
     let stmts: AST.StatementType[] = []
+    /**
+     * TODO: 因为 DUP 会复制一部分树所以在赋值的时候检查之前是否
+     * 赋值给了别的 loc, 是的话从那个 loc 取出来. 但是这里有个问
+     * 题如果这个 loc 在 dup 之后被赋值了的话值是不对的.
+     * 可能还需要一个反向表.
+     */
+    let locMap = new WeakMap<any, number>()
     let context: Context = {
       stack: [],
       local: new ObservableArray(locals, {
         onSet (index, value) {
+          if (locMap.has(value)) {
+            const i = locMap.get(value)
+            value = builder.identifier(`loc${i}`)
+          }
+          locMap.set(value, index)
           const stmt = builder.expressionStatement(
             builder.assignmentExpression(
               '=',
@@ -85,8 +97,12 @@ export class Compiler {
             )
           )
           stmts.push(stmt)
+          locals[index] = builder.identifier(`loc${index}`)
         }
-      })
+      }),
+      pushNode (node) {
+        stmts.push(node)
+      }
     }
 
     try {

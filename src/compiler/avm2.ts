@@ -86,7 +86,14 @@ export class AVM2Instruction implements Instruction {
   binaryExp (c: Context, op: AST.BinOp) {
     const b = c.stack.pop()
     const a = c.stack.pop()
-    c.stack.push(builder.BinaryExpression(a, b, op))
+    c.stack.push(builder.binaryExpression(a, b, op))
+  }
+  assignLocal (i: number, {pushNode, stack, local}: Context) {
+    pushNode(builder.expressionStatement(builder.assignmentExpression(
+      '=',
+      local.get(i),
+      stack.pop()
+    )))
   }
   [Bytecode.NOT] (c: Context) {
     this.unaryExp(c, '!', true)
@@ -109,6 +116,10 @@ export class AVM2Instruction implements Instruction {
   [Bytecode.DUP] (c: Context) {
     const t = c.stack[c.stack.length - 1]
     c.stack.push(t)
+  }
+  [Bytecode.INCREMENT] (c: Context) {
+    const e = c.stack.pop()
+    c.stack.push(builder.binaryExpression(e, builder.literal(1), '+'))
   }
   [Bytecode.PUSHUNDEFINED] (c: Context) {
     c.stack.push(AST.builder.literal(undefined))
@@ -157,5 +168,13 @@ export class AVM2Instruction implements Instruction {
   }
   [Bytecode.JUMP] (c: Context) {
     //
+  }
+  [Bytecode.IFSTRICTNE] ({pushNode, stack}: Context) {
+    const b = stack.pop()
+    const a = stack.pop()
+    const test = builder.binaryExpression(a, b, '!==')
+    pushNode(builder.ifStatement(
+      test, builder.jumpStatement(this.offset + this.operand[0])
+    ))
   }
 }

@@ -1,14 +1,14 @@
 // http://esprima.org/demo/parse.html#
 // https://developer.mozilla.org/en-US/docs/Mozilla/Projects/SpiderMonkey/Parser_API
 
-export type BinOp = '+' | '-' | '*' | '/' | '%' | '^'
+export type BinOp = '+' | '-' | '*' | '/' | '%' | '^' | '==' | '===' | '!=' | '!=='
 export type UnaryOp = '+' | '-' | '!'
 export type AssignmentOp = '='
 export interface AstNode {
   readonly type: string
 }
 
-export type StatementType = JumpStatement | BlockStatement | VariableDeclaration | JumpStatement | ExpressionStatement
+export type StatementType = IfStatement | JumpStatement | BlockStatement | VariableDeclaration | JumpStatement | ExpressionStatement
 export type ExpressionType = BinaryExpression | UnaryExpression | AssignmentExpression | Identifier | Literal
 
 export class RefNode<T> {
@@ -55,10 +55,24 @@ export class ASTBuilder {
       type: 'Identifier', name
     }
   }
-  BinaryExpression (left: any, right: any, operator: BinOp): BinaryExpression {
+  binaryExpression (left: ExpressionType, right: ExpressionType, operator: BinOp): BinaryExpression {
     return {
       type: 'BinaryExpression',
       left, right, operator
+    }
+  }
+  blockStatement (body: StatementType[]): BlockStatement {
+    return {
+      type: 'BlockStatement',
+      body
+    }
+  }
+  ifStatement (test: ExpressionType, consequent: StatementType, alternate?: StatementType): IfStatement {
+    return {
+      type: 'IfStatement',
+      test,
+      consequent,
+      alternate
     }
   }
   jumpStatement (target: number): JumpStatement {
@@ -101,7 +115,12 @@ export interface ExpressionStatement extends Statement {
   readonly type: 'ExpressionStatement'
   expression: ExpressionType
 }
-export interface IfStatement extends Statement {}
+export interface IfStatement extends Statement {
+  readonly type: 'IfStatement'
+  test: ExpressionType
+  consequent: StatementType
+  alternate?: StatementType
+}
 export interface LabeledStatement extends Statement {}
 export interface BreakStatement extends Statement {}
 export interface ContinueStatement extends Statement {}
