@@ -1,11 +1,12 @@
 import {Arch, Instruction, BlockMap, InsOperation} from './arch'
 import {Context} from './compiler'
 import {OpcodeParam, Bytecode, getBytecodeName} from '@/ops'
-import {BufferReader} from '@/utils'
-import {AbcFile, MethodInfo} from '@/abc'
+import {BufferReader, popManyInto} from '@/utils'
+import {AbcFile, MethodInfo, Multiname} from '@/abc'
+import * as CONSTANT from '@/constant'
 import * as AST from './ast'
 import { Logger } from 'logger'
-const builder = new AST.ASTBuilder()
+import { builder, BinOp, ExpressionType } from './ast'
 const logger = new Logger('avm2')
 
 const branchCode = [
@@ -150,11 +151,51 @@ export class AVM2Instruction implements Instruction {
     const e = c.stack.pop()
     c.stack.push(builder.binaryExpression(e, builder.literal(1), '+'))
   }
+  [Bytecode.DECREMENT] (c: Context) {
+    const e = c.stack.pop()
+    c.stack.push(builder.binaryExpression(e, builder.literal(1), '-'))
+  }
   [Bytecode.PUSHUNDEFINED] (c: Context) {
-    c.stack.push(AST.builder.literal(undefined))
+    c.stack.push(builder.literal(undefined))
   }
   [Bytecode.PUSHBYTE] (c: Context) {
-    c.stack.push(AST.builder.literal(this.operand[0]))
+    c.stack.push(builder.literal(this.operand[0]))
+  }
+  [Bytecode.FINDPROPSTRICT] (c: Context) {
+    c.stack.push(builder.runtimeExpression('findPropStrict', [c.stack.pop(), this.operand[0]]))
+  }
+  popName (stack: ExpressionType[], mn: Multiname) {
+    const kind = builder.literal(mn.kind)
+    let params = []
+    let name: ExpressionType = builder.literal(mn.name)
+    let nsSet: ExpressionType
+    if (mn.kind === CONSTANT.MTypename) {
+      throw new Error('not impl')
+    }
+    if (mn.isRuntimeName()) {
+      name = stack.pop()
+    }
+    if (mn.isRuntimeNamespace()) {
+      let ns = stack.pop()
+      nsSet = builder.arrayExpression([ns])
+    } else {
+      nsSet = builder.arrayExpression(mn.nsSet.map(i => builder.literal(i)))
+    }
+    return builder.runtimeExpression('multiname', [
+      kind,
+      name,
+      nsSet
+    ])
+  }
+  [Bytecode.CALLPROPERTY] ({stack}: Context) {
+    const mname: Multiname = this.operand[0]
+    const argCount: number = this.operand[1]
+    let args: ExpressionType[] = []
+
+    popManyInto(stack, argCount, args)
+    let rn = this.popName(stack, mname)
+
+    stack.push(builder.runtimeExpression('callProperty', [stack.pop(), rn, builder.arrayExpression(args)]))
   }
   [Bytecode.KILL] () {
     //
@@ -163,6 +204,12 @@ export class AVM2Instruction implements Instruction {
     //
   }
   [Bytecode.COERCE_A] () {
+    //
+  }
+  [Bytecode.CONVERT_D] () {
+    //
+  }
+  [Bytecode.RETURNVOID] () {
     //
   }
   [Bytecode.SETLOCAL0] (c: Context) {
@@ -198,12 +245,21 @@ export class AVM2Instruction implements Instruction {
   [Bytecode.JUMP] (c: Context) {
     //
   }
-  [Bytecode.IFSTRICTNE] ({pushNode, stack}: Context) {
+  ifStatement (op: BinOp, {stack, pushNode}: Context) {
     const b = stack.pop()
     const a = stack.pop()
     const test = builder.binaryExpression(a, b, '!==')
     pushNode(builder.ifStatement(
       test, builder.jumpStatement(this.operand[0])
     ))
+  }
+  [Bytecode.IFSTRICTNE] (c: Context) {
+    this.ifStatement('!==', c)
+  }
+  [Bytecode.IFLT] (c: Context) {
+    this.ifStatement('<', c)
+  }
+  [Bytecode.IFLE] (c: Context) {
+    this.ifStatement('<=', c)
   }
 }

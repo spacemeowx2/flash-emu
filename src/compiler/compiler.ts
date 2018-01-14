@@ -4,10 +4,11 @@ import {Scope} from '@/runtime'
 import {BufferReader} from '@/utils'
 import {Logger} from '@/logger'
 import {AVM2} from './avm2'
-import {Instruction, Block, BlockMap, Arch} from './arch'
+import {Instruction, Block, BlockMap, Arch, Region, RegionType} from './arch'
 import * as AST from './ast'
 import {AST2JS} from 'compiler/ast2js'
-import {findLoop} from './loopFinder'
+import {findLoop, StructureAnalysis} from './loopFinder'
+import {builder} from './ast'
 const logger = new Logger('Compiler')
 
 export interface Context {
@@ -29,22 +30,50 @@ export class Compiler<T> {
   }
   compile (programInfo: T) {
     const blocks = this.arch.getBlocks(programInfo)
+    const regions = this.createRegions(blocks.getList())
     this.printGraph(blocks)
-    logger.error(JSON.stringify(blocks, null, 2))
-    const block = blocks.get(18)
-    const ast = this.buildAST(block)
-    const ast2js = new AST2JS(ast)
-    logger.error(ast2js.toCode())
+    // logger.error(JSON.stringify(blocks, null, 2))
+    // const block = blocks.get(18)
+    // const ast = this.buildAST(block)
+    // const ast2js = new AST2JS(builder.program(ast))
+    // logger.error(ast2js.toCode())
 
     let loops = findLoop(blocks.getList(), blocks.get(0))
-    for (let loop of loops) {
-      console.log(loop)
-    }
   }
   printGraph (blocks: BlockMap) {
     for (let i of blocks.getList()) {
       logger.error(`${i.id} -> ${i.succs.map(b => b.id).join(', ')}`)
     }
+  }
+  createRegions (blocks: Block[]): Region[] {
+    let id = 1
+    let map = new Map<Block, Region>()
+    let regions: Region[] = []
+    for (let block of blocks) {
+      let region = this.createRegion(block)
+      region.id = id++
+      regions.push(region)
+      map.set(block, region)
+    }
+    for (let block of blocks) {
+      let region = map.get(block)
+      region.succs = block.succs.map(s => map.get(s))
+    }
+    return regions
+  }
+  createRegion (block: Block): Region {
+    let region = new Region()
+    region.stmts = this.buildAST(block)
+    if (block.succs.length === 0) {
+      region.type = RegionType.End
+    } else if (block.succs.length === 1) {
+      region.type = RegionType.Linear
+    } else if (block.succs.length === 2) {
+      region.type = RegionType.Branch
+    } else {
+      region.type = RegionType.Switch
+    }
+    return region
   }
   buildAST (block: Block) {
     const builder = AST.builder
@@ -95,8 +124,7 @@ export class Compiler<T> {
     } catch (e) {
       logger.error(e)
     }
-    return builder.program(stmts)
-    // logger.error(JSON.stringify(stmts, undefined, 2))
+    return stmts
   }
 }
 

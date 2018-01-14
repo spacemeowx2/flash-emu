@@ -1,7 +1,7 @@
 // http://esprima.org/demo/parse.html#
 // https://developer.mozilla.org/en-US/docs/Mozilla/Projects/SpiderMonkey/Parser_API
 
-export type BinOp = '+' | '-' | '*' | '/' | '%' | '^' | '==' | '===' | '!=' | '!=='
+export type BinOp = '+' | '-' | '*' | '/' | '%' | '^' | '==' | '===' | '!=' | '!==' | '<' | '>' | '<=' | '>='
 export type UnaryOp = '+' | '-' | '!'
 export type AssignmentOp = '='
 export interface AstNode {
@@ -9,7 +9,7 @@ export interface AstNode {
 }
 
 export type StatementType = WhileStatement | IfStatement | JumpStatement | BlockStatement | VariableDeclaration | JumpStatement | ExpressionStatement
-export type ExpressionType = BinaryExpression | UnaryExpression | AssignmentExpression | Identifier | Literal
+export type ExpressionType = ArrayExpression | RuntimeExpression | BinaryExpression | UnaryExpression | AssignmentExpression | Identifier | Literal
 
 export class RefNode<T> {
   constructor (public value: T) {}
@@ -105,6 +105,19 @@ export class ASTBuilder {
       expression
     }
   }
+  runtimeExpression (method: string, args: ExpressionType[]): RuntimeExpression {
+    return {
+      type: 'RuntimeExpression',
+      method,
+      args
+    }
+  }
+  arrayExpression (elements: ExpressionType[]): ArrayExpression {
+    return {
+      type: 'ArrayExpression',
+      elements
+    }
+  }
 }
 export const builder = ASTBuilder.instance
 
@@ -154,8 +167,16 @@ export interface VariableDeclaration extends Declaration {
   init: ExpressionType
 }
 export interface Expression extends AstNode {}
+export interface RuntimeExpression extends Expression {
+  readonly type: 'RuntimeExpression'
+  method: string
+  args: ExpressionType[]
+}
 export interface ThisExpression extends Expression {}
-export interface ArrayExpression extends Expression {}
+export interface ArrayExpression extends Expression {
+  readonly type: 'ArrayExpression'
+  elements: ExpressionType[]
+}
 export interface ObjectExpression extends Expression {}
 export interface FunctionExpression extends Function {}
 export interface UnaryExpression extends Expression {

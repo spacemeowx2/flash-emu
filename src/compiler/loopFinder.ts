@@ -9,12 +9,12 @@ interface GNode {
   node: IGraphNode
 }
 export function findLoop (graph: IGraphNode[], begin: IGraphNode) {
-  return new LoopFinder(graph, begin).find()
+  return new StructureAnalysis(graph, begin).findLoop()
 }
 function min<T> (a: T, b: T) {
   return a > b ? b : a
 }
-export class LoopFinder {
+export class StructureAnalysis {
   begin: GNode
   nodes: GNode[] = []
   nodeDistance: WeakMap<GNode, number>
@@ -43,7 +43,7 @@ export class LoopFinder {
     this.nodes = nodes
     this.begin = map.get(iBegin)
   }
-  find () {
+  findLoop () {
     this.iterative()
     const begin = this.begin
     this.nodeDistance = this.calcDistance()

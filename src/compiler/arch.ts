@@ -2,11 +2,18 @@ import {BufferReader} from '@/utils'
 import {AbcFile} from '@/abc'
 import {Context} from './compiler'
 import {IGraphNode} from './loopFinder'
+import {StatementType} from './ast'
 export type InsOperation = (context: Context) => void
 export interface Arch<T> {
   getBlocks (programInfo: T): BlockMap
 }
 
+export const enum RegionType {
+  End,
+  Linear,
+  Branch,
+  Switch,
+}
 export interface Instruction {
   offset: number
   length: number
@@ -14,14 +21,16 @@ export interface Instruction {
   execute: InsOperation
   toJSON (): any
 }
-export class Region {
+export class Region implements IGraphNode {
   id: number
-  blocks: Block[] = []
-  children: Region[] = []
+  type: RegionType
+  stmts: StatementType[] = []
+  succs: Region[] = []
 }
 export class Block implements IGraphNode {
   id: number
   ins: Instruction[] = []
+  statements: StatementType[] = []
   succs: Block[] = []
   constructor (
     public startOffset: number
