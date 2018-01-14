@@ -28,6 +28,7 @@ function initPriorityMap () {
     priority++
   }
 }
+initPriorityMap()
 type Line = [number, string]
 
 class Lines {

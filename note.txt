@@ -1,0 +1,58 @@
+  0 -> 108
+ 18 ->  94, 102
+ 94 -> 102
+102 -> 108
+108 -> 117,  18
+117 -> END
+
+a -> e
+b -> c, d
+c -> d
+d -> e
+e -> f, b
+f -> END
+{
+  for (init; test; update) {
+    body;
+  }
+}
+===
+{
+  init;
+  while (test) {
+    body;
+    update;
+  }
+}
+init -> test
+test -> body, END
+body -> update
+update -> test
+
+while (test) {
+  body;
+}
+
+
+body and update can be in one block.
+if I can find three statements modify the same identify, the loop is for loop.
+
+for (i = 0; i < 10; i++) {
+  a += i
+  for (j = 0; j < 10; j++) {
+    a += j
+  }
+  a--
+}
+
+i = 0
+while (i < 10) {
+  a += i
+  j = 0
+  while (j < 10) {
+    a += j
+    j++
+  }
+  a--
+  i++
+}

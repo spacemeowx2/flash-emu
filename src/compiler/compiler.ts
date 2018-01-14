@@ -1,13 +1,13 @@
 // https://www.free-decompiler.com/flash/docs/as3_pcode_instructions.en.html
 
-import * as ABC from '@/abc'
 import {Scope} from '@/runtime'
 import {BufferReader} from '@/utils'
 import {Logger} from '@/logger'
 import {AVM2} from './avm2'
 import {Instruction, Block, BlockMap, Arch} from './arch'
 import * as AST from './ast'
-import { AST2JS } from 'compiler/ast2js';
+import {AST2JS} from 'compiler/ast2js'
+import {findLoop} from './loopFinder'
 const logger = new Logger('Compiler')
 
 export interface Context {
@@ -20,56 +20,30 @@ interface KVListener<K, T> {
   onGet? (key: K, value: T): void
 }
 
-class ObservableArray<T> {
-  list: T[]
-  constructor (list: T[], private listener?: KVListener<number, T>) {
-    this.list = list
-  }
-  set (index: number, value: T): void {
-    this.list[index] = value
-    this.onSet(index, value)
-  }
-  get (index: number): T {
-    let v = this.list[index]
-    this.onGet(index, v)
-    return v
-  }
-  private onSet (index: number, value: T) {
-    if (this.listener && this.listener.onSet) {
-      this.listener.onSet(index, value)
-    }
-  }
-  private onGet (index: number, value: T) {
-    if (this.listener && this.listener.onGet) {
-      this.listener.onGet(index, value)
-    }
-  }
-}
-
-export class Compiler {
-  private arch: Arch
+export class Compiler<T> {
+  private arch: Arch<T>
   constructor (
-    archConstruct: {new (): Arch}
+    archConstruct: {new (): Arch<T>}
   ) {
     this.arch = new archConstruct()
   }
-  compile (methodInfo: ABC.MethodInfo) {
-    const abc = methodInfo.abc
-    const methodBody = methodInfo.getBody()
-    const blocks = this.arch.getBlocks(methodBody.code)
-    // logger.error(JSON.stringify(blocks, null, 2))
+  compile (programInfo: T) {
+    const blocks = this.arch.getBlocks(programInfo)
+    logger.error(JSON.stringify(blocks, null, 2))
     const block = blocks.get(18)
-    const ast = this.buildAST(block, {
-      regsCount: methodBody.localCount
-    })
+    const ast = this.buildAST(block)
     const ast2js = new AST2JS(ast)
     logger.error(ast2js.toCode())
-    logger.error(JSON.stringify(block, null, 2))
+
+    let loops = findLoop(blocks.getList(), blocks.get(0))
+    for (let loop of loops) {
+      console.log(loop)
+    }
   }
-  buildAST (block: Block, {regsCount}: {regsCount: number}) {
+  buildAST (block: Block) {
     const builder = AST.builder
     let locals: AST.Identifier[] = []
-    for (let i = 0; i < regsCount; i++) {
+    for (let i = 0; i < 10; i++) {
       locals.push(builder.identifier(`loc${i}`))
     }
     let stmts: AST.StatementType[] = []
@@ -78,6 +52,7 @@ export class Compiler {
      * 赋值给了别的 loc, 是的话从那个 loc 取出来. 但是这里有个问
      * 题如果这个 loc 在 dup 之后被赋值了的话值是不对的.
      * 可能还需要一个反向表.
+     * (我为什么不直接查一遍local呢)
      */
     let locMap = new WeakMap<any, number>()
     let context: Context = {
@@ -116,5 +91,31 @@ export class Compiler {
     }
     return builder.program(stmts)
     // logger.error(JSON.stringify(stmts, undefined, 2))
+  }
+}
+
+class ObservableArray<T> {
+  list: T[]
+  constructor (list: T[], private listener?: KVListener<number, T>) {
+    this.list = list
+  }
+  set (index: number, value: T): void {
+    this.list[index] = value
+    this.onSet(index, value)
+  }
+  get (index: number): T {
+    let v = this.list[index]
+    this.onGet(index, v)
+    return v
+  }
+  private onSet (index: number, value: T) {
+    if (this.listener && this.listener.onSet) {
+      this.listener.onSet(index, value)
+    }
+  }
+  private onGet (index: number, value: T) {
+    if (this.listener && this.listener.onGet) {
+      this.listener.onGet(index, value)
+    }
   }
 }

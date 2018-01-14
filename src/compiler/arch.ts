@@ -1,9 +1,10 @@
 import {BufferReader} from '@/utils'
+import {AbcFile} from '@/abc'
 import {Context} from './compiler'
+import {IGraphNode} from './loopFinder'
 export type InsOperation = (context: Context) => void
-export interface Arch {
-  getIns (reader: BufferReader): IterableIterator<Instruction>
-  getBlocks (code: ArrayBuffer): BlockMap
+export interface Arch<T> {
+  getBlocks (programInfo: T): BlockMap
 }
 
 export interface Instruction {
@@ -13,15 +14,28 @@ export interface Instruction {
   execute: InsOperation
   toJSON (): any
 }
-export class Block {
+export class Region {
+  id: number
+  blocks: Block[] = []
+  children: Region[] = []
+}
+export class Block implements IGraphNode {
   id: number
   ins: Instruction[] = []
   succ: Block[] = []
   constructor (
     public startOffset: number
   ) {}
+  toJSON () {
+    return {
+      id: this.id,
+      ins: this.ins,
+      succ: this.succ.map(i => i.id)
+    }
+  }
 }
 export class BlockMap extends Map<number, Block> {
+  private list: Block[] = []
   private nextID: number = 1
   get (key: number) {
     if (Number.isNaN(key)) {
@@ -31,10 +45,14 @@ export class BlockMap extends Map<number, Block> {
       return super.get(key)
     } else {
       const block = new Block(key)
+      this.list.push(block)
       block.id = this.nextID++
       super.set(key, block)
       return block
     }
+  }
+  getList () {
+    return this.list
   }
   toJSON () {
     let out: any = {}

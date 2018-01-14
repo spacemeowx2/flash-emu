@@ -8,7 +8,7 @@ export interface AstNode {
   readonly type: string
 }
 
-export type StatementType = IfStatement | JumpStatement | BlockStatement | VariableDeclaration | JumpStatement | ExpressionStatement
+export type StatementType = WhileStatement | IfStatement | JumpStatement | BlockStatement | VariableDeclaration | JumpStatement | ExpressionStatement
 export type ExpressionType = BinaryExpression | UnaryExpression | AssignmentExpression | Identifier | Literal
 
 export class RefNode<T> {
@@ -75,21 +75,28 @@ export class ASTBuilder {
       alternate
     }
   }
+  whileStatement (test: ExpressionType, body: StatementType): WhileStatement {
+    return {
+      type: 'WhileStatement',
+      test,
+      body
+    }
+  }
   jumpStatement (target: number): JumpStatement {
     return {
       type: 'JumpStatement', target
     }
   }
-  unaryExpression (op: UnaryOp, arg: ExpressionType, isPrefix: boolean): UnaryExpression {
+  unaryExpression (operator: UnaryOp, arg: ExpressionType, isPrefix: boolean): UnaryExpression {
     return {
       type: 'UnaryExpression',
-      op, arg, isPrefix
+      operator, arg, isPrefix
     }
   }
-  assignmentExpression (op: AssignmentOp, left: ExpressionType, right: ExpressionType): AssignmentExpression {
+  assignmentExpression (operator: AssignmentOp, left: ExpressionType, right: ExpressionType): AssignmentExpression {
     return {
       type: 'AssignmentExpression',
-      op, left, right
+      operator, left, right
     }
   }
   expressionStatement (expression: ExpressionType): ExpressionStatement {
@@ -133,7 +140,11 @@ export interface SwitchStatement extends Statement {}
 export interface ReturnStatement extends Statement {}
 export interface ThrowStatement extends Statement {}
 export interface TryStatement extends Statement {}
-export interface WhileStatement extends Statement {}
+export interface WhileStatement extends Statement {
+  readonly type: 'WhileStatement'
+  test: ExpressionType
+  body: StatementType
+}
 export interface DoWhileStatement extends Statement {}
 export interface ForStatement extends Statement {}
 export interface Declaration extends Statement {}
@@ -149,7 +160,7 @@ export interface ObjectExpression extends Expression {}
 export interface FunctionExpression extends Function {}
 export interface UnaryExpression extends Expression {
   readonly type: 'UnaryExpression'
-  op: UnaryOp, arg: ExpressionType, isPrefix: boolean
+  operator: UnaryOp, arg: ExpressionType, isPrefix: boolean
 }
 export interface BinaryExpression extends Expression {
   readonly type: 'BinaryExpression'
@@ -157,7 +168,7 @@ export interface BinaryExpression extends Expression {
 }
 export interface AssignmentExpression extends Expression {
   readonly type: 'AssignmentExpression'
-  op: AssignmentOp, left: ExpressionType, right: ExpressionType
+  operator: AssignmentOp, left: ExpressionType, right: ExpressionType
 }
 export interface LogicalExpression extends Expression {}
 export interface ConditionalExpression extends Expression {}
