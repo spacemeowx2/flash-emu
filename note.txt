@@ -37,6 +37,7 @@ while (test) {
 body and update can be in one block.
 if I can find three statements modify the same identify, the loop is for loop.
 
+a = 0
 for (i = 0; i < 10; i++) {
   a += i
   for (j = 0; j < 10; j++) {
@@ -44,6 +45,7 @@ for (i = 0; i < 10; i++) {
   }
   a--
 }
+trace(a)
 
 i = 0
 while (i < 10) {

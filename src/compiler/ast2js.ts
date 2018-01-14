@@ -90,6 +90,9 @@ export class AST2JS extends AST2Code {
     }
   }
   stmt (n: StatementType, indent: string): Lines {
+    const blockStmt = (lines: Lines, s: StatementType): void => {
+      lines.add(s.type === 'BlockStatement' ? 0 : 1, stmt(s, indent))
+    }
     const expr = (e: ExpressionType) => this.expr(e)
     const stmt = (n: StatementType, indent: string) => this.stmt(n, indent)
     let ret = new Lines(indent)
@@ -104,15 +107,19 @@ export class AST2JS extends AST2Code {
       case 'ExpressionStatement':
         return ret.add(0, `${expr(n.expression)}`)
       case 'IfStatement':
-        ret = ret.add(0, `if (${expr(n.test)})`)
-                 .add(n.consequent.type === 'BlockStatement' ? 0 : 1, stmt(n.consequent, indent))
+        ret.add(0, `if (${expr(n.test)})`)
+        blockStmt(ret, n.consequent)
         if (n.alternate) {
-          ret = ret.add(0, `else`)
-                   .add(n.alternate.type === 'BlockStatement' ? 0 : 1, stmt(n.alternate, indent))
+          ret.add(0, `else`)
+          blockStmt(ret, n.alternate)
         }
         return ret
       case 'JumpStatement':
         return ret.add(0, `goto block${n.target}`)
+      case 'WhileStatement':
+        ret.add(0, `while (${expr(n.test)})`)
+        blockStmt(ret, n.body)
+        return ret
       default:
         logger.error(`Empty stmt return ${n.type}`)
     }

@@ -29,6 +29,7 @@ export class Compiler<T> {
   }
   compile (programInfo: T) {
     const blocks = this.arch.getBlocks(programInfo)
+    this.printGraph(blocks)
     logger.error(JSON.stringify(blocks, null, 2))
     const block = blocks.get(18)
     const ast = this.buildAST(block)
@@ -38,6 +39,11 @@ export class Compiler<T> {
     let loops = findLoop(blocks.getList(), blocks.get(0))
     for (let loop of loops) {
       console.log(loop)
+    }
+  }
+  printGraph (blocks: BlockMap) {
+    for (let i of blocks.getList()) {
+      logger.error(`${i.id} -> ${i.succs.map(b => b.id).join(', ')}`)
     }
   }
   buildAST (block: Block) {

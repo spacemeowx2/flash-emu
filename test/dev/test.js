@@ -39,7 +39,7 @@ async function main () {
   // const swf = path.join(__dirname, './array&object.swf')
   const swf = path.join(__dirname, '../swf/compress/none.swf')
   // const swf = path.join(__dirname, './baby_flash.swf')
-  const abc = path.join(__dirname, '../compiler/algo.abc')
+  const abc = path.join(__dirname, '../compiler/nestedLoop.abc')
   await emu.testCompiler(abc)
   // console.error(avm.toJson(2))
   // console.log(globalObject)

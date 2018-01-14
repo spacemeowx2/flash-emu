@@ -22,7 +22,7 @@ export class Region {
 export class Block implements IGraphNode {
   id: number
   ins: Instruction[] = []
-  succ: Block[] = []
+  succs: Block[] = []
   constructor (
     public startOffset: number
   ) {}
@@ -30,7 +30,7 @@ export class Block implements IGraphNode {
     return {
       id: this.id,
       ins: this.ins,
-      succ: this.succ.map(i => i.id)
+      succ: this.succs.map(i => i.id)
     }
   }
 }

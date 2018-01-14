@@ -1,4 +1,3 @@
-// 
 import {Arch, Instruction, BlockMap, InsOperation} from './arch'
 import {Context} from './compiler'
 import {OpcodeParam, Bytecode, getBytecodeName} from '@/ops'
@@ -64,7 +63,7 @@ export class AVM2 implements Arch<MethodInfo> {
       if (blocks.has(offset)) {
         const newBlock = blocks.get(offset)
         if (newBlock !== curBlock) {
-          curBlock.succ.push(newBlock)
+          curBlock.succs.push(newBlock)
         }
         curBlock = newBlock
       }
@@ -76,9 +75,9 @@ export class AVM2 implements Arch<MethodInfo> {
         curBlock = blocks.get(insEnd)
         const targetBlock = blocks.get(targetOffset) // new a block
         if (i.bytecode === Bytecode.JUMP) {
-          lastBlock.succ = [targetBlock]
+          lastBlock.succs = [targetBlock]
         } else {
-          lastBlock.succ.push(curBlock, targetBlock)
+          lastBlock.succs.push(curBlock, targetBlock)
         }
       }
     }
