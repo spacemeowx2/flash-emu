@@ -7,7 +7,7 @@ import {AVM2} from './avm2'
 import {Instruction, Block, BlockMap, Arch, Region, RegionType} from './arch'
 import * as AST from './ast'
 import {AST2JS} from 'compiler/ast2js'
-import {findLoop, StructureAnalysis} from './loopFinder'
+import {StructureAnalysis} from './structure'
 import {builder} from './ast'
 const logger = new Logger('Compiler')
 
@@ -16,6 +16,8 @@ export interface Context {
   local: ObservableArray<any>
   pushNode (stmt: AST.StatementType): void
   getIdentifier (): AST.Identifier
+  getNextTarget (): number
+  isEndOfBlock (): boolean
 }
 interface KVListener<K, T> {
   onSet? (key: K, value: T): void
@@ -32,7 +34,9 @@ export class Compiler<T> {
   compile (programInfo: T) {
     const blocks = this.arch.getBlocks(programInfo)
     const regions = this.createRegions(blocks.getList())
+    const sa = new StructureAnalysis(regions, regions[0])
     this.printGraph(blocks)
+    sa.reduce()
     logger.error(JSON.stringify(regions, null, 2))
     // const block = blocks.get(18)
     // const ast = this.buildAST(block)
@@ -44,7 +48,6 @@ export class Compiler<T> {
       logger.error(region.id, ast2js.toCode())
     }
 
-    let loops = findLoop(blocks.getList(), blocks.get(0))
   }
   printGraph (blocks: BlockMap) {
     for (let i of blocks.getList()) {
@@ -63,12 +66,13 @@ export class Compiler<T> {
     }
     for (let block of blocks) {
       let region = map.get(block)
+      region.succ = map.get(block.succ)
       region.succs = block.succs.map(s => map.get(s))
     }
     return regions
   }
   createRegion (block: Block): Region {
-    let region = new Region()
+    let region = new Region(block.startOffset)
     region.stmts = this.buildAST(block)
     if (block.succs.length === 0) {
       region.type = RegionType.End
@@ -79,6 +83,10 @@ export class Compiler<T> {
     } else {
       region.type = RegionType.Switch
     }
+    const stmts = region.stmts
+    if (stmts[stmts.length - 1].type === 'IfStatement') {
+
+    }
     return region
   }
   buildAST (block: Block) {
@@ -87,6 +95,7 @@ export class Compiler<T> {
     for (let i = 0; i < 10; i++) {
       locals.push(builder.identifier(`loc${i}`))
     }
+    let isEOB = false
     let tIndex = 0 // tmp${tIndex}
     let stmts: AST.StatementType[] = []
     /**
@@ -122,11 +131,21 @@ export class Compiler<T> {
       },
       getIdentifier () {
         return builder.identifier(`tmp${tIndex++}`)
+      },
+      getNextTarget () {
+        return block.succ.startOffset
+      },
+      isEndOfBlock () {
+        return isEOB
       }
     }
 
+    const lastIns = block.ins[block.ins.length - 1]
     try {
       for (let ins of block.ins) {
+        if (lastIns === ins) {
+          isEOB = true
+        }
         // logger.error(ins.toJSON())
         ins.execute(context)
         // logger.error(context)

@@ -1,7 +1,7 @@
 import {BufferReader} from '@/utils'
 import {AbcFile} from '@/abc'
 import {Context} from './compiler'
-import {IGraphNode} from './loopFinder'
+import {IGraphNode} from './structure'
 import {StatementType} from './ast'
 export type InsOperation = (context: Context) => void
 export interface Arch<T> {
@@ -26,12 +26,16 @@ export class Region implements IGraphNode {
   type: RegionType
   stmts: StatementType[] = []
   succs: Region[] = []
+  succ: Region
+  constructor (
+    public startOffset: number
+  ) {}
   toJSON () {
     return {
       id: this.id,
       type: this.type,
       succ: this.succs.map(i => i.id),
-      stmts: this.stmts.map(s => s.type)
+      // stmts: this.stmts.map(s => s.type)
     }
   }
 }
@@ -39,6 +43,7 @@ export class Block implements IGraphNode {
   id: number
   ins: Instruction[] = []
   succs: Block[] = []
+  succ: Block
   constructor (
     public startOffset: number
   ) {}

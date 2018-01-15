@@ -1,3 +1,6 @@
+import {Region, RegionType} from './arch'
+import {Logger} from '@/logger'
+const logger = new Logger('Structure')
 export interface IGraphNode {
   id: number
   succs: IGraphNode[]
@@ -6,10 +9,7 @@ interface GNode {
   preds: GNode[]
   succs: GNode[]
   post: number | null
-  node: IGraphNode
-}
-export function findLoop (graph: IGraphNode[], begin: IGraphNode) {
-  return new StructureAnalysis(graph, begin).findLoop()
+  node: Region
 }
 function min<T> (a: T, b: T) {
   return a > b ? b : a
@@ -19,15 +19,15 @@ export class StructureAnalysis {
   nodes: GNode[] = []
   nodeDistance: WeakMap<GNode, number>
   idoms = new WeakMap<GNode, GNode>()
-  constructor (iGraph: IGraphNode[], iBegin: IGraphNode) {
-    let map = new WeakMap<IGraphNode, GNode>()
+  constructor (iGraph: Region[], iBegin: Region) {
+    let map = new WeakMap<Region, GNode>()
     let nodes: GNode[] = []
     let changed = true
 
     for (let i of iGraph) {
       const n: GNode = {
-        preds: [],
-        succs: [],
+        preds: [] as GNode[],
+        succs: [] as GNode[],
         post: null,
         node: i
       }
@@ -42,6 +42,95 @@ export class StructureAnalysis {
     }
     this.nodes = nodes
     this.begin = map.get(iBegin)
+  }
+  replaceSuccs (n: GNode, s: GNode) {
+    const si = n.succs.indexOf(s)
+    if (si === -1) {
+      throw new Error('s is not succ of n')
+    }
+    n.succs.splice(si)
+    n.succs.push(...s.succs.filter(i => i !== n))
+  }
+  replacePreds (n: GNode, s: GNode) {
+    for (let ss of s.succs) {
+      let pi = ss.preds.indexOf(s)
+      ss.preds.splice(pi)
+      ss.preds.push(n)
+    }
+  }
+  reduceSeqRegion (n: GNode) {
+    let node = n.node
+    let s = n.succs[0]
+    if (s.preds.length === 1) {
+      const sn = s.node
+      node.type = sn.type
+      node.stmts = node.stmts.concat(sn.stmts)
+      // remove s
+      this.replaceSuccs(n, s)
+      this.replacePreds(n, s)
+      logger.error('reduce seq')
+    } else {
+      return false
+    }
+  }
+  reduceIfRegion (n: GNode) {
+    const linearSucc = (n: GNode) => {
+      const node = n.node
+      if (node.type === RegionType.Linear) {
+        return n.succs[0]
+      } else {
+        return null
+      }
+    }
+    /**
+     *    1
+     *   / \
+     *   2 3
+     *   \ /
+     *    4
+     *
+     *    1 (2, 3)
+     *    |
+     *    4
+     * th = 2
+     * el = 3
+     * thS = 4
+     * elS = 4
+     */
+    const node = n.node
+    let ss = n.succs
+    let th = ss[0]
+    let el = ss[1]
+    let thS = linearSucc(th)
+    let elS = linearSucc(el)
+    if (elS === th) {
+      console.log(1)
+    } else if (thS === el) {
+      console.log(2)
+    } else if (elS !== null && elS === thS) {
+      console.log(3)
+    }
+    return false
+  }
+  reduceAcyclic (n: GNode): boolean {
+    switch (n.node.type) {
+      case RegionType.Linear:
+        return this.reduceSeqRegion(n)
+      case RegionType.Branch:
+        return this.reduceIfRegion(n)
+      case RegionType.Switch:
+        throw new Error('not impl')
+      case RegionType.End:
+        return false
+    }
+  }
+  reduce () {
+    logger.debug(`reduce start`)
+    for (let n of dfsPostOrder(this.nodes, this.begin)) {
+      logger.debug(`reduce ${n.node.id}`)
+      const didReduce = this.reduceAcyclic(n)
+      logger.debug(`reduce ${n.node.id} ${didReduce}`)
+    }
   }
   findLoop () {
     this.iterative()
@@ -191,7 +280,7 @@ export class StructureAnalysis {
     // return
   }
 }
-function* dfsPostOrder (nodes: GNode[], begin = nodes[0]) {
+function* dfsPostOrder<T extends IGraphNode> (nodes: GNode[], begin = nodes[0]) {
   let visited = new WeakMap<GNode, boolean>()
   let stack: GNode[] = [begin]
   while (stack.length > 0) {
@@ -205,7 +294,7 @@ function* dfsPostOrder (nodes: GNode[], begin = nodes[0]) {
     }
   }
 }
-function dfsPostOrderArray (nodes: GNode[], begin = nodes[0]) {
+function dfsPostOrderArray<T extends IGraphNode> (nodes: GNode[], begin = nodes[0]) {
   let ret = []
   for (let i of dfsPostOrder(nodes, begin)) {
     ret.push(i)

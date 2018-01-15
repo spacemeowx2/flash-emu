@@ -90,8 +90,10 @@ export class AVM2 implements Arch<MethodInfo> {
         curBlock = blocks.get(insEnd)
         const targetBlock = blocks.get(targetOffset) // new a block
         if (i.bytecode === Bytecode.JUMP) {
+          lastBlock.succ = targetBlock
           lastBlock.succs = [targetBlock]
         } else {
+          lastBlock.succ = curBlock
           lastBlock.succs.push(curBlock, targetBlock)
         }
       }
@@ -112,15 +114,18 @@ export class AVM2Instruction implements Instruction {
     this[this.bytecode](context)
   }
   resolveOperand (abc: AbcFile) {
+    const o = this.operand
     if (branchCode.includes(this.bytecode)) {
-      this.operand[0] = this.offset + this.length + this.operand[0]
+      o[0] = this.offset + this.length + o[0]
     } else {
       switch (this.bytecode) {
         case Bytecode.FINDPROPERTY:
         case Bytecode.FINDPROPSTRICT:
         case Bytecode.CALLPROPERTY:
-          this.operand[0] = abc.getMultiname(this.operand[0])
+          o[0] = abc.getMultiname(o[0])
           break
+        case Bytecode.PUSHSTRING:
+          o[0] = abc.getString(o[0])
       }
     }
   }
@@ -173,6 +178,12 @@ export class AVM2Instruction implements Instruction {
     c.stack.push(builder.literal(undefined))
   }
   [Bytecode.PUSHBYTE] (c: Context) {
+    c.stack.push(builder.literal(this.operand[0]))
+  }
+  [Bytecode.PUSHSHORT] (c: Context) {
+    c.stack.push(builder.literal(this.operand[0]))
+  }
+  [Bytecode.PUSHSTRING] (c: Context) {
     c.stack.push(builder.literal(this.operand[0]))
   }
   [Bytecode.FINDPROPSTRICT] ({stack}: Context) {
@@ -306,12 +317,17 @@ export class AVM2Instruction implements Instruction {
   [Bytecode.JUMP] (c: Context) {
     //
   }
-  ifStatement (op: BinOp, {stack, pushNode}: Context) {
+  ifStatement (op: BinOp, {stack, pushNode, getNextTarget, isEndOfBlock}: Context) {
+    if (!isEndOfBlock()) {
+      throw new Error('if statement is not end of block')
+    }
     const b = stack.pop()
     const a = stack.pop()
     const test = builder.binaryExpression(a, b, op)
     pushNode(builder.ifStatement(
-      test, builder.jumpStatement(this.operand[0])
+      test,
+      builder.jumpStatement(this.operand[0]),
+      builder.jumpStatement(getNextTarget())
     ))
   }
   [Bytecode.IFSTRICTNE] (c: Context) {

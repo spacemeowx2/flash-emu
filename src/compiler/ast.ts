@@ -8,7 +8,7 @@ export interface AstNode {
   readonly type: string
 }
 
-export type StatementType = ReturnStatement | WhileStatement | IfStatement | JumpStatement | BlockStatement | VariableDeclaration | JumpStatement | ExpressionStatement
+export type StatementType = ReturnStatement | WhileStatement | IfStatement | JumpStatement | BlockStatement | VariableDeclaration | ExpressionStatement
 export type ExpressionType = CallExpression | UnresolvedExpression<any> | ArrayExpression | RuntimeExpression | BinaryExpression | UnaryExpression | AssignmentExpression | Identifier | Literal
 
 export class RefNode<T> {
@@ -82,7 +82,7 @@ export class ASTBuilder {
       body
     }
   }
-  jumpStatement (target: number): JumpStatement {
+  jumpStatement<T = number> (target: T): JumpStatement<T> {
     return {
       type: 'JumpStatement', target
     }
@@ -140,7 +140,41 @@ export class ASTBuilder {
   }
 }
 export const builder = ASTBuilder.instance
-
+// TODO: compare type with all types
+function isAstNode (node: any): node is AstNode {
+  return node && node.type && typeof node.type === 'string'
+}
+export function* walkNode (root: any): IterableIterator<AstNode> {
+  const r: any = root
+  if (Array.isArray(r)) {
+    for (let n of r) {
+      for (let i of walkNode(n)) {
+        yield i
+      }
+    }
+  } else {
+    if (!isAstNode(root)) {
+      return
+    }
+    yield root
+    for (let key of Object.keys(r)) {
+      let v = r[key]
+      for (let i of walkNode(v)) {
+        yield i
+      }
+    }
+  }
+}
+export function* getAllNode<T extends AstNode> (root: any, type: T['type'] | T['type'][]): IterableIterator<T> {
+  if (typeof type === 'string') {
+    type = [type]
+  }
+  for (let i of walkNode(root)) {
+    if (type.includes(i.type)) {
+      yield i as any
+    }
+  }
+}
 export interface Program extends AstNode {
   readonly type: 'Program'
   body: StatementType[]
@@ -164,9 +198,9 @@ export interface IfStatement extends Statement {
 export interface LabeledStatement extends Statement {}
 export interface BreakStatement extends Statement {}
 export interface ContinueStatement extends Statement {}
-export interface JumpStatement extends Statement {
+export interface JumpStatement<T = number> extends Statement {
   readonly type: 'JumpStatement'
-  target: number
+  target: T
 }
 export interface WithStatement extends Statement {}
 export interface SwitchStatement extends Statement {}
