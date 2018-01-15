@@ -1,4 +1,6 @@
 interface FunctionInfo {
+  [key: string]: number | string
+  name: string
   runTime: number
   times: number
 }
@@ -35,7 +37,8 @@ export function functionEnd (name: string) {
   if (!funcTable.has(name)) {
     funcTable.set(name, {
       runTime: time,
-      times: 1
+      times: 1,
+      name
     })
   } else {
     const info = funcTable.get(name)
@@ -43,17 +46,22 @@ export function functionEnd (name: string) {
     info.times += 1
   }
 }
-export function topFunctions (count = 20, key: keyof FunctionInfo = 'runTime') {
-  let ret: any = {}
-  let out: any = {}
+export function topFunctions (count = 20, key: keyof FunctionInfo = 'runTime'): string {
+  let ret: {
+    [key: string]: FunctionInfo
+  } = {}
+  // let out: any = {}
+  const header = ['name', 'runTime', 'times']
+  let out: string[] = [header.join('\t')]
   for (let [k, v] of funcTable) {
     ret[k] = v
   }
   const keys = Array.from(funcTable.keys())
-    .sort((a, b) => funcTable.get(b)[key] - funcTable.get(a)[key])
+    .sort((a, b) => (funcTable.get(b)[key] as any) - (funcTable.get(a)[key] as any))
     .slice(0, count)
   keys.forEach((e: string) => {
-    out[e] = ret[e]
+    // out[e] = ret[e]
+    out.push(header.map(h => ret[e][h].toString()).join('\t'))
   })
-  return out
+  return out.join('\n')
 }

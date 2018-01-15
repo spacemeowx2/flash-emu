@@ -1,7 +1,7 @@
 import {AbcFile, Namespace, Multiname} from './abc'
 import * as ABC from './abc'
 import {BufferReader} from './utils'
-import {Interpreter} from './interpreter'
+import {Executor} from './executor'
 import {Compiler, AVM2} from './compiler'
 import {Scope, ApplicationDomain, SecurityDomain} from './runtime'
 import {Logger, LogFilter, setGlobalFlags, ILoggerFlags} from './logger'
@@ -22,7 +22,7 @@ interface IHookFunction {
 export default class FlashEmu {
   static BUILTIN = './lib/builtin.abc'
   static PLAYERGLOBAL = './lib/playerglobal.abc'
-  interpreter: Interpreter
+  interpreter: Executor
   fi: FileInterface
   sec: SecurityDomain
   app: ApplicationDomain
@@ -34,7 +34,7 @@ export default class FlashEmu {
     this.sec = new SecurityDomain(this)
     this.app = this.sec.createApplicationDomain(null)
 
-    this.interpreter = new Interpreter()
+    this.interpreter = new Executor()
     // this.interpreter = new Interpreter()
     this.fi = fi
   }
