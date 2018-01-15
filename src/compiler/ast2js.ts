@@ -108,6 +108,11 @@ export class AST2JS extends AST2Code {
         return ret.add(0, `let ${n.id.name};`)
       case 'ExpressionStatement':
         return ret.add(0, `${expr(n.expression)}`)
+      case 'IfJumpStatement':
+        return ret.add(0, `if (${expr(n.test)})`)
+                  .add(1, `goto ${n.consequent}`)
+                  .add(0, `else`)
+                  .add(1, `goto ${n.alternate}`)
       case 'IfStatement':
         ret.add(0, `if (${expr(n.test)})`)
         blockStmt(ret, n.consequent)
@@ -117,7 +122,7 @@ export class AST2JS extends AST2Code {
         }
         return ret
       case 'JumpStatement':
-        return ret.add(0, `goto block${n.target}`)
+        return ret.add(0, `goto ${n.target}`)
       case 'WhileStatement':
         ret.add(0, `while (${expr(n.test)})`)
         blockStmt(ret, n.body)

@@ -37,17 +37,16 @@ export class Compiler<T> {
     const sa = new StructureAnalysis(regions, regions[0])
     this.printGraph(blocks)
     sa.reduce()
-    logger.error(JSON.stringify(regions, null, 2))
+    // logger.error(JSON.stringify(regions, null, 2))
     // const block = blocks.get(18)
     // const ast = this.buildAST(block)
     // const ast2js = new AST2JS(builder.program(ast))
     // logger.error(ast2js.toCode())
-    for (let region of regions) {
+    for (let region of sa.nodes.map(i => i.node)) {
       const ast = builder.program(region.stmts)
       const ast2js = new AST2JS(ast)
-      logger.error(region.id, ast2js.toCode())
+      logger.error(region.startOffset + `: //${region.id}`, '\n' + ast2js.toCode())
     }
-
   }
   printGraph (blocks: BlockMap) {
     for (let i of blocks.getList()) {
@@ -83,9 +82,20 @@ export class Compiler<T> {
     } else {
       region.type = RegionType.Switch
     }
+    // 忘了要写什么了  想起来了
     const stmts = region.stmts
-    if (stmts[stmts.length - 1].type === 'IfStatement') {
-
+    const lastStmt = stmts[stmts.length - 1]
+    const checkMap: {[key: string]: RegionType} = {
+      IfJumpStatement: RegionType.Branch,
+      JumpStatement: RegionType.Linear,
+      ReturnStatement: RegionType.End
+    }
+    for (let key of Object.keys(checkMap)) {
+      if (lastStmt.type === key) {
+        if (region.type !== checkMap[key]) {
+          throw new Error(`${lastStmt.type} region type should be ${checkMap[key]}`)
+        }
+      }
     }
     return region
   }

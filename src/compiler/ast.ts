@@ -2,13 +2,13 @@
 // https://developer.mozilla.org/en-US/docs/Mozilla/Projects/SpiderMonkey/Parser_API
 
 export type BinOp = '+' | '-' | '*' | '/' | '%' | '^' | '==' | '===' | '!=' | '!==' | '<' | '>' | '<=' | '>='
-export type UnaryOp = '+' | '-' | '!'
+export type UnaryOp = '+' | '-' | '!' | '~'
 export type AssignmentOp = '='
 export interface AstNode {
   readonly type: string
 }
 
-export type StatementType = ReturnStatement | WhileStatement | IfStatement | JumpStatement | BlockStatement | VariableDeclaration | ExpressionStatement
+export type StatementType = IfJumpStatement | ReturnStatement | WhileStatement | IfStatement | JumpStatement | BlockStatement | VariableDeclaration | ExpressionStatement
 export type ExpressionType = CallExpression | UnresolvedExpression<any> | ArrayExpression | RuntimeExpression | BinaryExpression | UnaryExpression | AssignmentExpression | Identifier | Literal
 
 export class RefNode<T> {
@@ -70,9 +70,13 @@ export class ASTBuilder {
   ifStatement (test: ExpressionType, consequent: StatementType, alternate?: StatementType): IfStatement {
     return {
       type: 'IfStatement',
-      test,
-      consequent,
-      alternate
+      test, consequent, alternate
+    }
+  }
+  ifJumpStatement (test: ExpressionType, consequent: number, alternate: number): IfJumpStatement {
+    return {
+      type: 'IfJumpStatement',
+      test, consequent, alternate
     }
   }
   whileStatement (test: ExpressionType, body: StatementType): WhileStatement {
@@ -194,6 +198,12 @@ export interface IfStatement extends Statement {
   test: ExpressionType
   consequent: StatementType
   alternate?: StatementType
+}
+export interface IfJumpStatement extends Statement {
+  readonly type: 'IfJumpStatement'
+  test: ExpressionType
+  consequent: number
+  alternate: number
 }
 export interface LabeledStatement extends Statement {}
 export interface BreakStatement extends Statement {}

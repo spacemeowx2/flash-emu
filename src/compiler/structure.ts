@@ -1,5 +1,6 @@
 import {Region, RegionType} from './arch'
 import {Logger} from '@/logger'
+import {IfJumpStatement, IfStatement, builder} from 'compiler/ast'
 const logger = new Logger('Structure')
 export interface IGraphNode {
   id: number
@@ -19,8 +20,10 @@ export class StructureAnalysis {
   nodes: GNode[] = []
   nodeDistance: WeakMap<GNode, number>
   idoms = new WeakMap<GNode, GNode>()
+  startMap = new Map<number, Region>()
+  map = new WeakMap<Region, GNode>()
   constructor (iGraph: Region[], iBegin: Region) {
-    let map = new WeakMap<Region, GNode>()
+    const map = this.map
     let nodes: GNode[] = []
     let changed = true
 
@@ -33,6 +36,7 @@ export class StructureAnalysis {
       }
       map.set(i, n)
       nodes.push(n)
+      this.startMap.set(i.startOffset, i)
     }
     for (let n of nodes) {
       n.succs = n.node.succs.map(i => map.get(i))
@@ -42,38 +46,65 @@ export class StructureAnalysis {
     }
     this.nodes = nodes
     this.begin = map.get(iBegin)
+
+    this.iterative()
+  }
+  removeNode (n: GNode) {
+    logger.debug(`remove region ${n.node.id}`)
+    const idx = this.nodes.indexOf(n)
+    if (idx === -1) {
+      throw new Error(`Can not remove node ${n.node.id}`)
+    }
+    this.nodes.splice(idx, 1)
   }
   replaceSuccs (n: GNode, s: GNode) {
     const si = n.succs.indexOf(s)
     if (si === -1) {
       throw new Error('s is not succ of n')
     }
-    n.succs.splice(si)
-    n.succs.push(...s.succs.filter(i => i !== n))
+    n.succs.splice(si, 1)
+    n.succs.push(...s.succs.filter(i => i !== n && !n.succs.includes(i)))
   }
   replacePreds (n: GNode, s: GNode) {
     for (let ss of s.succs) {
       let pi = ss.preds.indexOf(s)
-      ss.preds.splice(pi)
-      ss.preds.push(n)
+      ss.preds.splice(pi, 1)
+      if (ss !== n && !ss.preds.includes(n)) {
+        ss.preds.push(n)
+      }
     }
   }
+  /**
+   * merge the succ of n into n
+   */
   reduceSeqRegion (n: GNode) {
     let node = n.node
+    let stmts = node.stmts
     let s = n.succs[0]
     if (s.preds.length === 1) {
       const sn = s.node
       node.type = sn.type
-      node.stmts = node.stmts.concat(sn.stmts)
+      let sLast = stmts[stmts.length - 1]
+      if (sLast.type === 'JumpStatement') {
+        stmts.pop()
+      }
+      node.stmts = stmts.concat(sn.stmts)
       // remove s
-      this.replaceSuccs(n, s)
-      this.replacePreds(n, s)
-      logger.error('reduce seq')
+      this.collapse(n, s)
     } else {
       return false
     }
   }
+  /**
+   * collapse s into n, remove s from graph
+   */
+  collapse (n: GNode, s: GNode): void {
+    this.replaceSuccs(n, s)
+    this.replacePreds(n, s)
+    this.removeNode(s)
+  }
   reduceIfRegion (n: GNode) {
+    const remove = (t: GNode) => this.collapse(n, t)
     const linearSucc = (n: GNode) => {
       const node = n.node
       if (node.type === RegionType.Linear) {
@@ -82,33 +113,43 @@ export class StructureAnalysis {
         return null
       }
     }
-    /**
-     *    1
-     *   / \
-     *   2 3
-     *   \ /
-     *    4
-     *
-     *    1 (2, 3)
-     *    |
-     *    4
-     * th = 2
-     * el = 3
-     * thS = 4
-     * elS = 4
-     */
+    const map = this.map
+    const startMap = this.startMap
     const node = n.node
-    let ss = n.succs
-    let th = ss[0]
-    let el = ss[1]
+    const nLast: IfJumpStatement = node.stmts[node.stmts.length - 1] as any
+    let th = map.get(startMap.get(nLast.consequent))
+    let el = map.get(startMap.get(nLast.alternate))
     let thS = linearSucc(th)
     let elS = linearSucc(el)
     if (elS === th) {
-      console.log(1)
+      node.stmts[node.stmts.length - 1] = builder.ifStatement(
+        builder.unaryExpression('!', nLast.test, true),
+        builder.blockStatement(el.node.stmts)
+      )
+      node.type = RegionType.Linear
+      remove(el)
+      return true
     } else if (thS === el) {
       console.log(2)
+      // th should be in n
+      node.stmts[node.stmts.length - 1] = builder.ifStatement(
+        nLast.test,
+        builder.blockStatement(th.node.stmts)
+      )
+      node.type = RegionType.Linear
+      remove(th)
+      return true
     } else if (elS !== null && elS === thS) {
       console.log(3)
+      node.stmts[node.stmts.length - 1] = builder.ifStatement(
+        nLast.test,
+        builder.blockStatement(th.node.stmts),
+        builder.blockStatement(el.node.stmts)
+      )
+      node.type = RegionType.Linear
+      remove(th)
+      remove(el)
+      return true
     }
     return false
   }
@@ -124,13 +165,68 @@ export class StructureAnalysis {
         return false
     }
   }
+  isCyclic (n: GNode): boolean {
+    const ret = n.preds.some(p => p === n || this.dominates(n, p))
+    return ret
+  }
+  printGraph () {
+    for (let n of this.nodes) {
+      const i = n.node
+      logger.error(`${i.id} -> ${n.succs.map(b => b.node.id).join(', ')}`)
+    }
+  }
   reduce () {
     logger.debug(`reduce start`)
     for (let n of dfsPostOrder(this.nodes, this.begin)) {
-      logger.debug(`reduce ${n.node.id}`)
-      const didReduce = this.reduceAcyclic(n)
-      logger.debug(`reduce ${n.node.id} ${didReduce}`)
+      let didReduce = false
+      do {
+        logger.debug(`reduce ${n.node.id}`)
+        didReduce = this.reduceAcyclic(n)
+        if (!didReduce && this.isCyclic(n)) {
+          didReduce = this.reduceCyclic(n)
+        }
+        logger.debug(`reduce ${n.node.id} end`)
+        logger.error('---')
+        this.printGraph()
+        logger.error('---')
+      } while (didReduce)
     }
+  }
+  reduceCyclic (n: GNode): boolean {
+    const remove = (t: GNode) => this.collapse(n, t)
+    console.log('reduceCyclic')
+    const node = n.node
+    const map = this.map
+    const startMap = this.startMap
+    if (node.type === RegionType.Branch) {
+      const nLast: IfJumpStatement = node.stmts[node.stmts.length - 1] as any
+      let th = map.get(startMap.get(nLast.consequent))
+      let el = map.get(startMap.get(nLast.alternate))
+      if (nLast.type !== 'IfJumpStatement') {
+        throw new Error('expecting IfJumpStatement')
+      }
+      let body: GNode
+      let tail: GNode
+      if (this.dominates(n, th)) {
+        body = th
+        tail = el
+      } else {
+        body = el
+        tail = th
+      }
+      while (this.reduceSeqRegion(body)) {
+        //
+        console.log('merged')
+      }
+      node.stmts[node.stmts.length - 1] = builder.whileStatement(
+        nLast.test,
+        builder.blockStatement(body.node.stmts)
+      )
+      remove(body)
+      node.type = RegionType.Linear
+      return true
+    }
+    return false
   }
   findLoop () {
     this.iterative()

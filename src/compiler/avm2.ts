@@ -150,6 +150,9 @@ export class AVM2Instruction implements Instruction {
   [Bytecode.ADD] (c: Context) {
     this.binaryExp(c, '+')
   }
+  [Bytecode.BITNOT] (c: Context) {
+    this.unaryExp(c, '~', true)
+  }
   [Bytecode.MODULO] (c: Context) {
     this.binaryExp(c, '%')
   }
@@ -314,8 +317,10 @@ export class AVM2Instruction implements Instruction {
   [Bytecode.GETLOCAL] (c: Context) {
     c.stack.push(c.local.get(this.operand[0]))
   }
-  [Bytecode.JUMP] (c: Context) {
-    //
+  [Bytecode.JUMP] ({pushNode}: Context) {
+    pushNode(builder.jumpStatement(
+      this.operand[0]
+    ))
   }
   ifStatement (op: BinOp, {stack, pushNode, getNextTarget, isEndOfBlock}: Context) {
     if (!isEndOfBlock()) {
@@ -324,10 +329,10 @@ export class AVM2Instruction implements Instruction {
     const b = stack.pop()
     const a = stack.pop()
     const test = builder.binaryExpression(a, b, op)
-    pushNode(builder.ifStatement(
+    pushNode(builder.ifJumpStatement(
       test,
-      builder.jumpStatement(this.operand[0]),
-      builder.jumpStatement(getNextTarget())
+      this.operand[0],
+      getNextTarget()
     ))
   }
   [Bytecode.IFSTRICTNE] (c: Context) {
