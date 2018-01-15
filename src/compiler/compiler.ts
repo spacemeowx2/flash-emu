@@ -15,6 +15,7 @@ export interface Context {
   stack: AST.ExpressionType[]
   local: ObservableArray<any>
   pushNode (stmt: AST.StatementType): void
+  getIdentifier (): AST.Identifier
 }
 interface KVListener<K, T> {
   onSet? (key: K, value: T): void
@@ -32,11 +33,16 @@ export class Compiler<T> {
     const blocks = this.arch.getBlocks(programInfo)
     const regions = this.createRegions(blocks.getList())
     this.printGraph(blocks)
-    // logger.error(JSON.stringify(blocks, null, 2))
+    logger.error(JSON.stringify(regions, null, 2))
     // const block = blocks.get(18)
     // const ast = this.buildAST(block)
     // const ast2js = new AST2JS(builder.program(ast))
     // logger.error(ast2js.toCode())
+    for (let region of regions) {
+      const ast = builder.program(region.stmts)
+      const ast2js = new AST2JS(ast)
+      logger.error(region.id, ast2js.toCode())
+    }
 
     let loops = findLoop(blocks.getList(), blocks.get(0))
   }
@@ -81,6 +87,7 @@ export class Compiler<T> {
     for (let i = 0; i < 10; i++) {
       locals.push(builder.identifier(`loc${i}`))
     }
+    let tIndex = 0 // tmp${tIndex}
     let stmts: AST.StatementType[] = []
     /**
      * TODO: 因为 DUP 会复制一部分树所以在赋值的时候检查之前是否
@@ -112,12 +119,15 @@ export class Compiler<T> {
       }),
       pushNode (node) {
         stmts.push(node)
+      },
+      getIdentifier () {
+        return builder.identifier(`tmp${tIndex++}`)
       }
     }
 
     try {
       for (let ins of block.ins) {
-        logger.error(ins.toJSON())
+        // logger.error(ins.toJSON())
         ins.execute(context)
         // logger.error(context)
       }

@@ -5,10 +5,9 @@ import {BufferReader, popManyInto} from '@/utils'
 import {AbcFile, MethodInfo, Multiname} from '@/abc'
 import * as CONSTANT from '@/constant'
 import * as AST from './ast'
-import { Logger } from 'logger'
-import { builder, BinOp, ExpressionType } from './ast'
+import {Logger} from 'logger'
+import {builder, BinOp, ExpressionType, RuntimeExpression, UnresolvedItem, UnresolvedExpression, RuntimeMethod, ExpressionStatement} from './ast'
 const logger = new Logger('avm2')
-
 const branchCode = [
   Bytecode.IFEQ,
   Bytecode.IFFALSE,
@@ -25,6 +24,21 @@ const branchCode = [
   Bytecode.IFTRUE,
   Bytecode.JUMP
 ]
+
+type AVM2RTMethods = RTMFindProperty
+interface RTMFindProperty extends RuntimeMethod {
+  readonly name: 'RTMFindProperty'
+}
+interface RTMCallProperty extends RuntimeMethod {
+  readonly name: 'RTMCallProperty'
+}
+
+
+type Unresolved = UnresolvedFindProperty
+interface UnresolvedFindProperty extends UnresolvedItem {
+  readonly type: 'FindProperty'
+  mn: Multiname
+}
 
 export class AVM2 implements Arch<MethodInfo> {
   *getIns (reader: BufferReader, abc: AbcFile): IterableIterator<AVM2Instruction> {
@@ -161,8 +175,25 @@ export class AVM2Instruction implements Instruction {
   [Bytecode.PUSHBYTE] (c: Context) {
     c.stack.push(builder.literal(this.operand[0]))
   }
-  [Bytecode.FINDPROPSTRICT] (c: Context) {
-    c.stack.push(builder.runtimeExpression('findPropStrict', [c.stack.pop(), this.operand[0]]))
+  [Bytecode.FINDPROPSTRICT] ({stack}: Context) {
+    if (this.isQName(this.operand[0])) {
+      stack.push(builder.unresolvedExpression<UnresolvedFindProperty>({
+        type: 'FindProperty',
+        mn: this.operand[0] as Multiname
+      }))
+    } else {
+      let rn = this.popName(stack, this.operand[0])
+      stack.push(builder.runtimeExpression('RTMFindProperty', [rn]))
+    }
+  }
+  isQName (mn: Multiname): boolean {
+    if (mn.kind === CONSTANT.MTypename) {
+      throw new Error('not impl')
+    }
+    if (!mn.isRuntime() && !mn.isRuntimeNamespace()) {
+      return true
+    }
+    return false
   }
   popName (stack: ExpressionType[], mn: Multiname) {
     const kind = builder.literal(mn.kind)
@@ -181,21 +212,51 @@ export class AVM2Instruction implements Instruction {
     } else {
       nsSet = builder.arrayExpression(mn.nsSet.map(i => builder.literal(i)))
     }
-    return builder.runtimeExpression('multiname', [
+    return builder.runtimeExpression('RTMMultiname', [
       kind,
       name,
       nsSet
     ])
   }
-  [Bytecode.CALLPROPERTY] ({stack}: Context) {
+  isRtExpr<T extends AVM2RTMethods, U extends T['name']>
+      (expr: ExpressionType, method: string): expr is RuntimeExpression<T> {
+    const isRuntime = (exp: ExpressionType): exp is RuntimeExpression<T> => {
+      return expr.type === 'RuntimeExpression'
+    }
+    return isRuntime(expr) && expr.method === method
+  }
+  isUnExpr<T extends Unresolved, U extends T['type']>
+      (expr: ExpressionType, type: U): expr is UnresolvedExpression<T> {
+    const isUnresolved = (exp: ExpressionType): exp is UnresolvedExpression<T> => {
+      return expr.type === 'UnresolvedExpression'
+    }
+    return isUnresolved(expr) && expr.item.type === type
+  }
+  [Bytecode.CALLPROPERTY] ({stack, pushNode, getIdentifier}: Context) {
     const mname: Multiname = this.operand[0]
     const argCount: number = this.operand[1]
     let args: ExpressionType[] = []
 
     popManyInto(stack, argCount, args)
     let rn = this.popName(stack, mname)
+    let receiver = stack.pop()
 
-    stack.push(builder.runtimeExpression('callProperty', [stack.pop(), rn, builder.arrayExpression(args)]))
+    let rtExp: ExpressionType
+    if (this.isUnExpr(receiver, 'FindProperty')) {
+      if (receiver.item.mn.mangledName === mname.mangledName) {
+        rtExp = getIdentifier()
+        const ret = builder.callExpression(
+          builder.identifier(mname.name),
+          args
+        )
+        pushNode(builder.expressionStatement(builder.assignmentExpression('=', rtExp, ret)))
+      }
+    } else if (this.isRtExpr(receiver, 'RTMFindProperty')) {
+      rtExp = builder.runtimeExpression('RTMCallProperty', [
+        receiver, rn, builder.arrayExpression(args)
+      ])
+    }
+    stack.push(rtExp)
   }
   [Bytecode.KILL] () {
     //
@@ -209,8 +270,8 @@ export class AVM2Instruction implements Instruction {
   [Bytecode.CONVERT_D] () {
     //
   }
-  [Bytecode.RETURNVOID] () {
-    //
+  [Bytecode.RETURNVOID] ({pushNode}: Context) {
+    pushNode(builder.returnStatement())
   }
   [Bytecode.SETLOCAL0] (c: Context) {
     c.local.set(0, c.stack.pop())
@@ -248,7 +309,7 @@ export class AVM2Instruction implements Instruction {
   ifStatement (op: BinOp, {stack, pushNode}: Context) {
     const b = stack.pop()
     const a = stack.pop()
-    const test = builder.binaryExpression(a, b, '!==')
+    const test = builder.binaryExpression(a, b, op)
     pushNode(builder.ifStatement(
       test, builder.jumpStatement(this.operand[0])
     ))

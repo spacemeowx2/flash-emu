@@ -8,8 +8,8 @@ export interface AstNode {
   readonly type: string
 }
 
-export type StatementType = WhileStatement | IfStatement | JumpStatement | BlockStatement | VariableDeclaration | JumpStatement | ExpressionStatement
-export type ExpressionType = ArrayExpression | RuntimeExpression | BinaryExpression | UnaryExpression | AssignmentExpression | Identifier | Literal
+export type StatementType = ReturnStatement | WhileStatement | IfStatement | JumpStatement | BlockStatement | VariableDeclaration | JumpStatement | ExpressionStatement
+export type ExpressionType = CallExpression | UnresolvedExpression<any> | ArrayExpression | RuntimeExpression | BinaryExpression | UnaryExpression | AssignmentExpression | Identifier | Literal
 
 export class RefNode<T> {
   constructor (public value: T) {}
@@ -99,17 +99,37 @@ export class ASTBuilder {
       operator, left, right
     }
   }
+  callExpression (callee: ExpressionType, args: ExpressionType[]): CallExpression {
+    return {
+      type: 'CallExpression',
+      callee,
+      arguments: args
+    }
+  }
   expressionStatement (expression: ExpressionType): ExpressionStatement {
     return {
       type: 'ExpressionStatement',
       expression
     }
   }
-  runtimeExpression (method: string, args: ExpressionType[]): RuntimeExpression {
+  returnStatement (argument?: ExpressionType): ReturnStatement {
+    return {
+      type: 'ReturnStatement',
+      argument
+    }
+  }
+  runtimeExpression<T extends RuntimeMethod = RuntimeMethod>
+      (method: T['name'], args: T['args']): RuntimeExpression<T> {
     return {
       type: 'RuntimeExpression',
       method,
       args
+    }
+  }
+  unresolvedExpression<T extends UnresolvedItem> (item: T): UnresolvedExpression<T> {
+    return {
+      type: 'UnresolvedExpression',
+      item
     }
   }
   arrayExpression (elements: ExpressionType[]): ArrayExpression {
@@ -150,7 +170,10 @@ export interface JumpStatement extends Statement {
 }
 export interface WithStatement extends Statement {}
 export interface SwitchStatement extends Statement {}
-export interface ReturnStatement extends Statement {}
+export interface ReturnStatement extends Statement {
+  readonly type: 'ReturnStatement'
+  argument?: ExpressionType
+}
 export interface ThrowStatement extends Statement {}
 export interface TryStatement extends Statement {}
 export interface WhileStatement extends Statement {
@@ -167,10 +190,21 @@ export interface VariableDeclaration extends Declaration {
   init: ExpressionType
 }
 export interface Expression extends AstNode {}
-export interface RuntimeExpression extends Expression {
-  readonly type: 'RuntimeExpression'
-  method: string
+export interface RuntimeMethod {
+  readonly name: string
   args: ExpressionType[]
+}
+export interface UnresolvedItem {
+  readonly type: string
+}
+export interface UnresolvedExpression<T extends UnresolvedItem> extends Expression {
+  readonly type: 'UnresolvedExpression'
+  item: T
+}
+export interface RuntimeExpression<T extends RuntimeMethod = RuntimeMethod> extends Expression {
+  readonly type: 'RuntimeExpression'
+  method: T['name']
+  args: T['args']
 }
 export interface ThisExpression extends Expression {}
 export interface ArrayExpression extends Expression {
@@ -194,7 +228,11 @@ export interface AssignmentExpression extends Expression {
 export interface LogicalExpression extends Expression {}
 export interface ConditionalExpression extends Expression {}
 export interface NewExpression extends Expression {}
-export interface CallExpression extends Expression {}
+export interface CallExpression extends Expression {
+  readonly type: 'CallExpression'
+  callee: ExpressionType
+  arguments: ExpressionType[]
+}
 export interface MemberExpression extends Expression {}
 export interface ComprehensionExpression extends Expression {}
 export interface GeneratorExpression extends Expression {}

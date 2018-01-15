@@ -26,11 +26,18 @@ export class Region implements IGraphNode {
   type: RegionType
   stmts: StatementType[] = []
   succs: Region[] = []
+  toJSON () {
+    return {
+      id: this.id,
+      type: this.type,
+      succ: this.succs.map(i => i.id),
+      stmts: this.stmts.map(s => s.type)
+    }
+  }
 }
 export class Block implements IGraphNode {
   id: number
   ins: Instruction[] = []
-  statements: StatementType[] = []
   succs: Block[] = []
   constructor (
     public startOffset: number

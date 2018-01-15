@@ -85,6 +85,8 @@ export class AST2JS extends AST2Code {
         return e.name
       case 'Literal':
         return e.str
+      case 'CallExpression':
+        return `${expr(e.callee)}(${e.arguments.map(expr)})`
       default:
         logger.error(`Empty expr return ${e.type}`)
     }
@@ -120,6 +122,8 @@ export class AST2JS extends AST2Code {
         ret.add(0, `while (${expr(n.test)})`)
         blockStmt(ret, n.body)
         return ret
+      case 'ReturnStatement':
+        return ret.add(0, `return${n.argument ? ` ${expr(n.argument)}` : ''}`)
       default:
         logger.error(`Empty stmt return ${n.type}`)
     }
