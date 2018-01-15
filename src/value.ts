@@ -458,7 +458,7 @@ export class ValueManager implements IValueManager {
     if (DEBUG) {
       functionStart(mn.name)
     }
-    let ret = func.call(this, ...args)
+    let ret = func.call(self, ...args)
     if (DEBUG) {
       functionEnd(mn.name)
     }
