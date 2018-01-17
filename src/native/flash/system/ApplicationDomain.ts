@@ -16,7 +16,7 @@ class AXApplicationDomain {
 @NativeClass('ApplicationDomainClass')
 export class ApplicationDomainClass extends AXNativeClass {
   get currentDomain () {
-    const app = this.app.sec.flashEmu.interpreter.getCurrentAPP()
+    const app = this.app.sec.flashEmu.executor.getCurrentAPP()
     return new AXApplicationDomain(app)
   }
   get MIN_DOMAIN_MEMORY_LENGTH () {

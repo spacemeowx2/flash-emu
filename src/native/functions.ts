@@ -13,7 +13,7 @@ export class GlobalFunctions extends NativeFuncClass {
   }
   @NativeFunction()
   casi32 (addr: number, expectedVal: number, newVal: number) {
-    const app = this.app.sec.flashEmu.interpreter.getCurrentAPP()
+    const app = this.app.sec.flashEmu.executor.getCurrentAPP()
     const view = app.domainMemory.view
     const old = view.getInt32(addr, true)
     if (old === expectedVal) {

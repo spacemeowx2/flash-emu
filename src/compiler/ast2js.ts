@@ -1,4 +1,4 @@
-import {Program, AST2Code, StatementType, BlockStatement, VariableDeclaration, ExpressionType} from './ast'
+import {Program, AST2Code, StatementType, BlockStatement, VariableDeclaration, ExpressionType, SwitchCase} from './ast'
 import { Logger } from 'logger'
 const logger = new Logger('ast2js')
 const OpOrder: (string | string[])[] = [
@@ -59,6 +59,16 @@ class Lines {
 }
 
 export class AST2JS extends AST2Code {
+  cases (cases: SwitchCase[], indent: string): Lines {
+    let ret = new Lines(indent)
+    for (let c of cases) {
+      ret.add(0, `case ${this.expr(c.test)}:`)
+      for (let s of c.consequent) {
+        ret.add(0, this.stmt(s, indent))
+      }
+    }
+    return ret
+  }
   expr (e: ExpressionType): string {
     const expr = (e: ExpressionType) => this.expr(e)
     switch (e.type) {
@@ -86,7 +96,7 @@ export class AST2JS extends AST2Code {
       case 'Literal':
         return e.str
       case 'CallExpression':
-        return `${expr(e.callee)}(${e.arguments.map(expr)})`
+        return `${expr(e.callee)}(${e.arguments.map(expr).join(', ')})`
       default:
         logger.error(`Empty expr return ${e.type}`)
     }
@@ -127,8 +137,14 @@ export class AST2JS extends AST2Code {
         ret.add(0, `while (${expr(n.test)})`)
         blockStmt(ret, n.body)
         return ret
+      case 'BreakStatement':
+        return ret.add(0, `break`)
       case 'ReturnStatement':
         return ret.add(0, `return${n.argument ? ` ${expr(n.argument)}` : ''}`)
+      case 'SwitchStatement':
+        return ret.add(0, `switch (${expr(n.discriminant)}) {`)
+                  .add(1, this.cases(n.cases, indent))
+                  .add(0, `}`)
       default:
         logger.error(`Empty stmt return ${n.type}`)
     }

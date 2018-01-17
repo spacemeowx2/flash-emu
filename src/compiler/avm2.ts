@@ -98,6 +98,14 @@ export class AVM2 implements Arch<MethodInfo> {
         }
       }
     }
+    for (let block of blocks.getList()) {
+      if (block.succ === undefined) {
+        if (block.succs.length > 1) {
+          throw new Error('if block succs > 1, succ should not be undefined')
+        }
+        block.succ = block.succs[0]
+      }
+    }
     return blocks
   }
 }

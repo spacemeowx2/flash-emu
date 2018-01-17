@@ -8,7 +8,7 @@ export interface AstNode {
   readonly type: string
 }
 
-export type StatementType = IfJumpStatement | ReturnStatement | WhileStatement | IfStatement | JumpStatement | BlockStatement | VariableDeclaration | ExpressionStatement
+export type StatementType = SwitchStatement | BreakStatement | IfJumpStatement | ReturnStatement | WhileStatement | IfStatement | JumpStatement | BlockStatement | VariableDeclaration | ExpressionStatement
 export type ExpressionType = CallExpression | UnresolvedExpression<any> | ArrayExpression | RuntimeExpression | BinaryExpression | UnaryExpression | AssignmentExpression | Identifier | Literal
 
 export class RefNode<T> {
@@ -86,6 +86,12 @@ export class ASTBuilder {
       body
     }
   }
+  breakStatement (label?: string): BreakStatement {
+    return {
+      type: 'BreakStatement',
+      label
+    }
+  }
   jumpStatement<T = number> (target: T): JumpStatement<T> {
     return {
       type: 'JumpStatement', target
@@ -142,6 +148,18 @@ export class ASTBuilder {
       elements
     }
   }
+  switchStatement (discriminant: ExpressionType, cases: SwitchCase[]): SwitchStatement {
+    return {
+      type: 'SwitchStatement',
+      discriminant, cases
+    }
+  }
+  switchCase (test: ExpressionType | null, consequent: StatementType[]): SwitchCase {
+    return {
+      type: 'SwitchCase',
+      test, consequent
+    }
+  }
 }
 export const builder = ASTBuilder.instance
 // TODO: compare type with all types
@@ -160,11 +178,21 @@ export function* walkNode (root: any): IterableIterator<AstNode> {
     if (!isAstNode(root)) {
       return
     }
-    yield root
+    yield r
     for (let key of Object.keys(r)) {
       let v = r[key]
       for (let i of walkNode(v)) {
         yield i
+      }
+    }
+  }
+}
+export function replaceNode (root: any, callback: (n: AstNode) => AstNode): void {
+  for (let node of walkNode(root)) {
+    for (let key of Object.keys(root)) {
+      let v = root[key]
+      if (isAstNode(v)) {
+        root[key] = callback(v)
       }
     }
   }
@@ -206,14 +234,21 @@ export interface IfJumpStatement extends Statement {
   alternate: number
 }
 export interface LabeledStatement extends Statement {}
-export interface BreakStatement extends Statement {}
+export interface BreakStatement extends Statement {
+  readonly type: 'BreakStatement'
+  label: string
+}
 export interface ContinueStatement extends Statement {}
 export interface JumpStatement<T = number> extends Statement {
   readonly type: 'JumpStatement'
   target: T
 }
 export interface WithStatement extends Statement {}
-export interface SwitchStatement extends Statement {}
+export interface SwitchStatement extends Statement {
+  readonly type: 'SwitchStatement'
+  discriminant: ExpressionType
+  cases: SwitchCase[]
+}
 export interface ReturnStatement extends Statement {
   readonly type: 'ReturnStatement'
   argument?: ExpressionType
@@ -285,7 +320,11 @@ export interface GraphIndexExpression extends Expression {}
 export interface Pattern extends AstNode {}
 export interface ObjectPattern extends Pattern {}
 export interface ArrayPattern extends Pattern {}
-export interface SwitchCase extends AstNode {}
+export interface SwitchCase extends AstNode {
+  readonly type: 'SwitchCase'
+  test: ExpressionType | null
+  consequent: StatementType[]
+}
 export interface CatchClause extends AstNode {}
 export interface ComprehensionBlock extends AstNode {}
 export interface ComprehensionIf extends AstNode {}

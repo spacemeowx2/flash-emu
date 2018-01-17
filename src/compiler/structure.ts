@@ -1,6 +1,6 @@
 import {Region, RegionType} from './arch'
 import {Logger} from '@/logger'
-import {IfJumpStatement, IfStatement, builder} from 'compiler/ast'
+import {IfJumpStatement, IfStatement, builder, StatementType} from 'compiler/ast'
 const logger = new Logger('Structure')
 export interface IGraphNode {
   id: number
@@ -91,6 +91,8 @@ export class StructureAnalysis {
       node.stmts = stmts.concat(sn.stmts)
       // remove s
       this.collapse(n, s)
+      console.log('reduce seq', n.node.id, s.node.id)
+      return true
     } else {
       return false
     }
@@ -104,6 +106,7 @@ export class StructureAnalysis {
     this.removeNode(s)
   }
   reduceIfRegion (n: GNode) {
+    console.log('reduce if')
     const remove = (t: GNode) => this.collapse(n, t)
     const linearSucc = (n: GNode) => {
       const node = n.node
@@ -193,18 +196,22 @@ export class StructureAnalysis {
     }
   }
   reduceCyclic (n: GNode): boolean {
+    const getLastIf = (stmts: StatementType[]): [IfJumpStatement, GNode, GNode] => {
+      const nLast: IfJumpStatement = stmts[stmts.length - 1] as any
+      if (nLast.type !== 'IfJumpStatement') {
+        throw new Error('expecting IfJumpStatement')
+      }
+      let th = map.get(startMap.get(nLast.consequent))
+      let el = map.get(startMap.get(nLast.alternate))
+      return [nLast, th, el]
+    }
     const remove = (t: GNode) => this.collapse(n, t)
     console.log('reduceCyclic')
     const node = n.node
     const map = this.map
     const startMap = this.startMap
     if (node.type === RegionType.Branch) {
-      const nLast: IfJumpStatement = node.stmts[node.stmts.length - 1] as any
-      let th = map.get(startMap.get(nLast.consequent))
-      let el = map.get(startMap.get(nLast.alternate))
-      if (nLast.type !== 'IfJumpStatement') {
-        throw new Error('expecting IfJumpStatement')
-      }
+      let [nLast, th, el] = getLastIf(node.stmts)
       let body: GNode
       let tail: GNode
       if (this.dominates(n, th)) {
@@ -214,17 +221,58 @@ export class StructureAnalysis {
         body = el
         tail = th
       }
-      while (this.reduceSeqRegion(body)) {
-        //
-        console.log('merged')
+      if (node.stmts.length === 1) {
+        while (this.reduceSeqRegion(body)) {
+          //
+          console.log('merged')
+        }
+        node.stmts[0] = builder.whileStatement(
+          nLast.test,
+          builder.blockStatement(body.node.stmts)
+        )
+        remove(body)
+        node.type = RegionType.Linear
+        return true
+      } else {
+        for (let p of [] as any) {// tail.preds
+          const stmts = p.node.stmts
+          if (stmts[stmts.length - 1].type === 'IfJumpStatement') {
+            let [nLast, th, el] = getLastIf(p.node.stmts)
+            let exp = nLast.test
+            if (th === tail) {
+              // Do nothing
+            } else if (el === tail) {
+              const t = th
+              el = th
+              th = t
+              exp = builder.unaryExpression('!', exp, true)
+            } else {
+              throw new Error('impossible')
+            }
+            let elS: StatementType
+            if (el !== tail) {
+              if (el.node.stmts.length > 0) {
+                elS = builder.blockStatement(el.node.stmts)
+              }
+              this.collapse(n, el)
+            }
+            // th should be break, el to be collpse
+            stmts[stmts.length - 1] = builder.ifStatement(
+              exp,
+              builder.breakStatement(),
+              elS
+            )
+          } else {
+            console.log('just go tail')
+          }
+        }
+        node.stmts = [builder.whileStatement(
+          builder.identifier('true'),
+          builder.blockStatement(node.stmts)
+        )]
+        node.type = RegionType.Linear
+        return true
       }
-      node.stmts[node.stmts.length - 1] = builder.whileStatement(
-        nLast.test,
-        builder.blockStatement(body.node.stmts)
-      )
-      remove(body)
-      node.type = RegionType.Linear
-      return true
     }
     return false
   }

@@ -138,7 +138,7 @@ export class ApplicationDomain {
     let runtimeScript = scriptRuntime.get(script)
     let global = runtimeScript.global
     runtimeScript.state = ScriptInfoState.Executing
-    this.sec.flashEmu.interpreter.interpret(global, script.init, global.scope, [], null)
+    this.sec.flashEmu.executor.executeMethod(global, script.init, global.scope, [], null)
     runtimeScript.state = ScriptInfoState.Executed
     // logger.debug('end executeScript', app.sec.apps.indexOf(app), script.abc.script.indexOf(script), script.init.id)
     return global
@@ -166,7 +166,7 @@ export class ApplicationDomain {
     // }
     const metas = newCls.holderMeta.filter(m => m.name === 'native')
     const meta = metas[0]
-    const interpreter = this.sec.flashEmu.interpreter
+    const executor = this.sec.flashEmu.executor
     const instance = newCls.getInstance()
     let axClass: AXClass
     if (meta) {
@@ -184,12 +184,12 @@ export class ApplicationDomain {
         // logger.error('iinit', axClass.name)
         this.buf = bin.slice(0, bin.byteLength)
       }
-      return interpreter.interpret(this, instance.iinit, classScope, args, null)
+      return executor.executeMethod(this, instance.iinit, classScope, args, null)
     }
 
     let initBody = newCls.cinit.getBody()
     if (!isEmptyMethod(initBody.code)) {
-      interpreter.interpret(axClass, newCls.cinit, classScope, [axClass], null)
+      executor.executeMethod(axClass, newCls.cinit, classScope, [axClass], null)
     }
     return axClass
   }
@@ -311,9 +311,9 @@ export class SecurityDomain {
     return app
   }
   createFunction (methodInfo: ABC.MethodInfo, scope: Scope, hasDynamicScope?: boolean) {
-    const interpreter = this.flashEmu.interpreter
+    const executor = this.flashEmu.executor
     let fun: FunctionCall = function (...args: any[]): any {
-      return interpreter.interpret(this, methodInfo, scope, args, fun)
+      return executor.executeMethod(this, methodInfo, scope, args, fun)
     }
     return fun
   }

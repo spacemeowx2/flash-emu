@@ -22,7 +22,7 @@ interface IHookFunction {
 export default class FlashEmu {
   static BUILTIN = './lib/builtin.abc'
   static PLAYERGLOBAL = './lib/playerglobal.abc'
-  interpreter: Executor
+  executor: Executor
   fi: FileInterface
   sec: SecurityDomain
   app: ApplicationDomain
@@ -34,7 +34,7 @@ export default class FlashEmu {
     this.sec = new SecurityDomain(this)
     this.app = this.sec.createApplicationDomain(null)
 
-    this.interpreter = new Executor()
+    this.executor = new Executor()
     // this.interpreter = new Interpreter()
     this.fi = fi
   }

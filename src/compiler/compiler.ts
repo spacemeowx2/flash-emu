@@ -8,7 +8,8 @@ import {Instruction, Block, BlockMap, Arch, Region, RegionType} from './arch'
 import * as AST from './ast'
 import {AST2JS} from 'compiler/ast2js'
 import {StructureAnalysis} from './structure'
-import {builder} from './ast'
+import {builder, StatementType, replaceNode, AstNode, JumpStatement, IfJumpStatement} from './ast'
+import FlashEmu from 'flashemu';
 const logger = new Logger('Compiler')
 
 export interface Context {
@@ -33,6 +34,8 @@ export class Compiler<T> {
   }
   compile (programInfo: T) {
     const blocks = this.arch.getBlocks(programInfo)
+    this.printGraph(blocks)
+    logger.error(JSON.stringify(blocks, null, 2))
     const regions = this.createRegions(blocks.getList())
     const sa = new StructureAnalysis(regions, regions[0])
     this.printGraph(blocks)
@@ -42,11 +45,95 @@ export class Compiler<T> {
     // const ast = this.buildAST(block)
     // const ast2js = new AST2JS(builder.program(ast))
     // logger.error(ast2js.toCode())
-    for (let region of sa.nodes.map(i => i.node)) {
-      const ast = builder.program(region.stmts)
-      const ast2js = new AST2JS(ast)
-      logger.error(region.startOffset + `: //${region.id}`, '\n' + ast2js.toCode())
+    if (DEBUG) {
+      for (let region of sa.nodes.map(i => i.node)) {
+        const ast = builder.program(region.stmts)
+        // logger.error('ast', JSON.stringify(ast, null, 2))
+        const ast2js = new AST2JS(ast)
+        logger.error(region.startOffset + `: //${region.id}`, '\n' + ast2js.toCode())
+      }
     }
+    let stmts: StatementType[]
+    if (sa.nodes.length > 1) {
+      const regions = this.createRegions(blocks.getList())
+      stmts = this.switchTemplate(regions)
+    } else {
+      stmts = sa.nodes[0].node.stmts
+    }
+    const ast = builder.program(stmts)
+    // logger.error('ast', JSON.stringify(ast, null, 2))
+    const ast2js = new AST2JS(ast)
+    logger.error('\n' + ast2js.toCode())
+  }
+  switchTemplate (regions: Region[]): StatementType[] {
+    const isJumpStatement = (n: AstNode): n is JumpStatement => n.type === 'JumpStatement'
+    const isIfJumpStatement = (n: AstNode): n is IfJumpStatement => n.type === 'IfJumpStatement'
+    const jumpPC = (t: number) => builder.expressionStatement(
+      builder.assignmentExpression(
+        '=',
+        pc,
+        builder.literal(t)
+      )
+    )
+    const running = builder.identifier('running')
+    const pc = builder.identifier('_pc_')
+    let last: Region
+    const next = new WeakMap<Region, Region>()
+    for (let r of regions) {
+      if (last) {
+        next.set(last, r)
+      }
+      last = r
+    }
+    const cases = regions.map(r => {
+      const stmts = r.stmts
+      let replaced = false
+      replaceNode(stmts, (n: AstNode) => {
+        if (isJumpStatement(n)) {
+          replaced = true
+          return jumpPC(n.target)
+        } else if (isIfJumpStatement(n)) {
+          replaced = true
+          return builder.ifStatement(
+            n.test,
+            jumpPC(n.consequent),
+            jumpPC(n.alternate)
+          )
+        }
+        return n
+      })
+      let noJump = false
+      let lastReturn = false
+      if (!replaced && r.succ) {
+        noJump = next.get(r) === r.succ
+        if (!noJump) {
+          stmts.push(jumpPC(r.succ.startOffset))
+        }
+      }
+      let bodyStmts = [...stmts]
+      lastReturn = stmts.length > 0 && stmts[stmts.length - 1].type === 'ReturnStatement'
+      let hasBreak = !(lastReturn || noJump)
+      if (hasBreak) {
+        bodyStmts.push(builder.breakStatement())
+      }
+      let body: StatementType[] = [builder.blockStatement(bodyStmts)]
+      if (bodyStmts.length === 0) {
+        body = bodyStmts
+      }
+      return builder.switchCase(
+        builder.literal(r.startOffset),
+        body
+      )
+    })
+    return [
+      builder.expressionStatement(builder.assignmentExpression('=', pc, builder.literal(0))),
+      builder.whileStatement(
+        builder.identifier('true'),
+        builder.switchStatement(
+          pc, cases
+        )
+      )
+    ]
   }
   printGraph (blocks: BlockMap) {
     for (let i of blocks.getList()) {
@@ -82,18 +169,20 @@ export class Compiler<T> {
     } else {
       region.type = RegionType.Switch
     }
-    // 忘了要写什么了  想起来了
+
     const stmts = region.stmts
-    const lastStmt = stmts[stmts.length - 1]
-    const checkMap: {[key: string]: RegionType} = {
-      IfJumpStatement: RegionType.Branch,
-      JumpStatement: RegionType.Linear,
-      ReturnStatement: RegionType.End
-    }
-    for (let key of Object.keys(checkMap)) {
-      if (lastStmt.type === key) {
-        if (region.type !== checkMap[key]) {
-          throw new Error(`${lastStmt.type} region type should be ${checkMap[key]}`)
+    if (stmts.length > 0) {
+      const lastStmt = stmts[stmts.length - 1]
+      const checkMap: {[key: string]: RegionType} = {
+        IfJumpStatement: RegionType.Branch,
+        JumpStatement: RegionType.Linear,
+        ReturnStatement: RegionType.End
+      }
+      for (let key of Object.keys(checkMap)) {
+        if (lastStmt.type === key) {
+          if (region.type !== checkMap[key]) {
+            throw new Error(`${lastStmt.type} region type should be ${checkMap[key]}`)
+          }
         }
       }
     }
