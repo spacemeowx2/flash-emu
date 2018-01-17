@@ -109,7 +109,7 @@ export class AVM2 implements Arch<MethodInfo> {
     return blocks
   }
   makeFunction (programInfo: MethodInfo, code: string): Function {
-    const len = 1 // programInfo.paramNames.length
+    const len = 0 // programInfo.paramNames.length
     let params: string[] = []
     for (let i = 0; i < len; i++) {
       params.push(`loc${i + 1}`)

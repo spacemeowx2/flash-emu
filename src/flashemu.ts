@@ -223,6 +223,6 @@ export default class FlashEmu {
     const func = compiler.compile(method)
 
     global.trace = (...args: any[]) => console.log(...args)
-    logger.log(func.toString(), func(5))
+    logger.log(func.toString())
   }
 }

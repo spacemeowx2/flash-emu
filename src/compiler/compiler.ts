@@ -63,6 +63,7 @@ export class Compiler<T> {
     const ast = this.declareVars(stmts)
     // logger.error('ast', JSON.stringify(ast, null, 2))
     const ast2js = new AST2JS(ast)
+    ast2js.simplify()
     const code = ast2js.toCode()
     return this.arch.makeFunction(programInfo, code)
   }

@@ -7,6 +7,15 @@ export type AssignmentOp = '='
 export interface AstNode {
   readonly type: string
 }
+export const InvertOp = new Map<BinOp, BinOp>([
+  ['==', '!='],
+  ['===', '!=='],
+  ['<', '>='],
+  ['>', '<=']
+])
+for (let [k, v] of InvertOp) {
+  InvertOp.set(v, k)
+}
 
 export type StatementType = SwitchStatement | BreakStatement | IfJumpStatement | ReturnStatement | WhileStatement | IfStatement | JumpStatement | BlockStatement | VariableDeclaration | ExpressionStatement
 export type ExpressionType = CallExpression | UnresolvedExpression<any> | ArrayExpression | RuntimeExpression | BinaryExpression | UnaryExpression | AssignmentExpression | Identifier | Literal
@@ -14,10 +23,41 @@ export type ExpressionType = CallExpression | UnresolvedExpression<any> | ArrayE
 export class RefNode<T> {
   constructor (public value: T) {}
 }
-
+class Folder {
+  fold (expr: ExpressionType) {
+    if (expr.type === 'UnaryExpression') {
+      return this.foldUnary(expr)
+    }
+  }
+  foldUnary (expr: UnaryExpression): ExpressionType {
+    const arg = expr.arg
+    switch (expr.operator) {
+      case '!':
+        if (arg.type === 'BinaryExpression') {
+          return builder.binaryExpression(
+            arg.left,
+            arg.right,
+            InvertOp.get(arg.operator)
+          )
+        }
+    }
+  }
+}
+export function isExpression (node: AstNode): node is ExpressionType {
+  const e = 'Expression'
+  return node.type.substring(node.type.length - e.length) === e
+}
 export abstract class AST2Code {
   constructor (protected program: Program) {
     //
+  }
+  simplify () {
+    const folder = new Folder()
+    for (let node of walkNode(this.program.body, true)) {
+      if (isExpression(node)) {
+        Object.assign(node, folder.fold(node))
+      }
+    }
   }
   unexpected (n: AstNode) {
     const s = `Unexpected parse node type: ${n.type} (${Object.getOwnPropertyNames(n).toString()})`
@@ -172,7 +212,7 @@ export const builder = ASTBuilder.instance
 function isAstNode (node: any): node is AstNode {
   return node && node.type && typeof node.type === 'string'
 }
-export function* walkNode (root: any): IterableIterator<AstNode> {
+export function* walkNode (root: any, postOrder = false): IterableIterator<AstNode> {
   const r: any = root
   if (Array.isArray(r)) {
     for (let n of r) {
@@ -184,12 +224,17 @@ export function* walkNode (root: any): IterableIterator<AstNode> {
     if (!isAstNode(root)) {
       return
     }
-    yield r
+    if (!postOrder) {
+      yield r
+    }
     for (let key of Object.keys(r)) {
       let v = r[key]
       for (let i of walkNode(v)) {
         yield i
       }
+    }
+    if (postOrder) {
+      yield r
     }
   }
 }
