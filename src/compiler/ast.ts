@@ -97,6 +97,12 @@ export class ASTBuilder {
       type: 'JumpStatement', target
     }
   }
+  variableDeclaration (id: Identifier[]): VariableDeclaration {
+    return {
+      type: 'VariableDeclaration',
+      id
+    }
+  }
   unaryExpression (operator: UnaryOp, arg: ExpressionType, isPrefix: boolean): UnaryExpression {
     return {
       type: 'UnaryExpression',
@@ -265,8 +271,7 @@ export interface ForStatement extends Statement {}
 export interface Declaration extends Statement {}
 export interface VariableDeclaration extends Declaration {
   readonly type: 'VariableDeclaration'
-  id: Identifier
-  init: ExpressionType
+  id: Identifier[]
 }
 export interface Expression extends AstNode {}
 export interface RuntimeMethod {

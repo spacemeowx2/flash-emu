@@ -214,11 +214,15 @@ export default class FlashEmu {
     await this.init()
     const stream = await this.fi.readFile(fileName)
     const reader = new BufferReader(stream)
-    let sec = new SecurityDomain(this)
-    let app = sec.createApplicationDomain(null)
-    let abc = new AbcFile(reader, app)
+    const sec = new SecurityDomain(this)
+    const app = sec.createApplicationDomain(null)
+    const abc = new AbcFile(reader, app)
+    const method = abc.getMethod(0)
 
-    let compiler = new Compiler(AVM2)
-    logger.log(JSON.stringify(compiler.compile(abc.getMethod(0)), null, 2))
+    const compiler = new Compiler(AVM2)
+    const func = compiler.compile(method)
+
+    global.trace = (...args: any[]) => console.log(...args)
+    logger.log(func.toString(), func(5))
   }
 }

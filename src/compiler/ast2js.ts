@@ -115,14 +115,14 @@ export class AST2JS extends AST2Code {
                   .add(1, n.body.map(i => this.stmt(i, indent)))
                   .add(0, '}')
       case 'VariableDeclaration':
-        return ret.add(0, `let ${n.id.name};`)
+        return ret.add(0, `let ${n.id.map(id => id.name).join(', ')};`)
       case 'ExpressionStatement':
-        return ret.add(0, `${expr(n.expression)}`)
+        return ret.add(0, `${expr(n.expression)};`)
       case 'IfJumpStatement':
         return ret.add(0, `if (${expr(n.test)})`)
-                  .add(1, `goto ${n.consequent}`)
+                  .add(1, `goto ${n.consequent};`)
                   .add(0, `else`)
-                  .add(1, `goto ${n.alternate}`)
+                  .add(1, `goto ${n.alternate};`)
       case 'IfStatement':
         ret.add(0, `if (${expr(n.test)})`)
         blockStmt(ret, n.consequent)
@@ -132,15 +132,15 @@ export class AST2JS extends AST2Code {
         }
         return ret
       case 'JumpStatement':
-        return ret.add(0, `goto ${n.target}`)
+        return ret.add(0, `goto ${n.target};`)
       case 'WhileStatement':
         ret.add(0, `while (${expr(n.test)})`)
         blockStmt(ret, n.body)
         return ret
       case 'BreakStatement':
-        return ret.add(0, `break`)
+        return ret.add(0, `break;`)
       case 'ReturnStatement':
-        return ret.add(0, `return${n.argument ? ` ${expr(n.argument)}` : ''}`)
+        return ret.add(0, `return${n.argument ? ` ${expr(n.argument)}` : ''};`)
       case 'SwitchStatement':
         return ret.add(0, `switch (${expr(n.discriminant)}) {`)
                   .add(1, this.cases(n.cases, indent))

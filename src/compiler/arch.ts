@@ -2,10 +2,11 @@ import {BufferReader} from '@/utils'
 import {AbcFile} from '@/abc'
 import {Context} from './compiler'
 import {IGraphNode} from './structure'
-import {StatementType} from './ast'
+import {StatementType, Program} from './ast'
 export type InsOperation = (context: Context) => void
 export interface Arch<T> {
   getBlocks (programInfo: T): BlockMap
+  makeFunction (programInfo: T, body: string): Function
 }
 
 export const enum RegionType {

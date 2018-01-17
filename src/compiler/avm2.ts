@@ -108,6 +108,14 @@ export class AVM2 implements Arch<MethodInfo> {
     }
     return blocks
   }
+  makeFunction (programInfo: MethodInfo, code: string): Function {
+    const len = 1 // programInfo.paramNames.length
+    let params: string[] = []
+    for (let i = 0; i < len; i++) {
+      params.push(`loc${i + 1}`)
+    }
+    return new Function(...params, 'loc0 = this;\n' + code)
+  }
 }
 export class AVM2Instruction implements Instruction {
   [key: number]: InsOperation
@@ -119,6 +127,10 @@ export class AVM2Instruction implements Instruction {
     return `${this.offset} ${this.length} ${getBytecodeName(this.bytecode)}${this.operand.map(i => ` ${i.toString()}`).join('')}`
   }
   execute (context: Context): void {
+    let func = this[this.bytecode]
+    if (!func) {
+      throw new TypeError(`${getBytecodeName(this.bytecode)} not defined`)
+    }
     this[this.bytecode](context)
   }
   resolveOperand (abc: AbcFile) {
@@ -157,6 +169,9 @@ export class AVM2Instruction implements Instruction {
   }
   [Bytecode.ADD] (c: Context) {
     this.binaryExp(c, '+')
+  }
+  [Bytecode.SUBTRACT] (c: Context) {
+    this.binaryExp(c, '-')
   }
   [Bytecode.BITNOT] (c: Context) {
     this.unaryExp(c, '~', true)

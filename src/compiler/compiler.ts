@@ -8,7 +8,7 @@ import {Instruction, Block, BlockMap, Arch, Region, RegionType} from './arch'
 import * as AST from './ast'
 import {AST2JS} from 'compiler/ast2js'
 import {StructureAnalysis} from './structure'
-import {builder, StatementType, replaceNode, AstNode, JumpStatement, IfJumpStatement} from './ast'
+import {builder, StatementType, replaceNode, AstNode, JumpStatement, IfJumpStatement, Program, getAllNode, AssignmentExpression, Identifier} from './ast'
 import FlashEmu from 'flashemu';
 const logger = new Logger('Compiler')
 
@@ -60,10 +60,25 @@ export class Compiler<T> {
     } else {
       stmts = sa.nodes[0].node.stmts
     }
-    const ast = builder.program(stmts)
+    const ast = this.declareVars(stmts)
     // logger.error('ast', JSON.stringify(ast, null, 2))
     const ast2js = new AST2JS(ast)
-    logger.error('\n' + ast2js.toCode())
+    const code = ast2js.toCode()
+    return this.arch.makeFunction(programInfo, code)
+  }
+  declareVars (stmts: StatementType[]): Program {
+    let ids = new Map<string, Identifier>()
+    for (let n of getAllNode(stmts, 'AssignmentExpression')) {
+      const a: AssignmentExpression = n as any
+      if (a.left.type === 'Identifier') {
+        ids.set(a.left.name, a.left)
+      }
+    }
+    let vars = builder.variableDeclaration([...ids.values()])
+    if (vars.id.length > 0) {
+      stmts = [vars, ...stmts]
+    }
+    return builder.program(stmts)
   }
   switchTemplate (regions: Region[]): StatementType[] {
     const isJumpStatement = (n: AstNode): n is JumpStatement => n.type === 'JumpStatement'
