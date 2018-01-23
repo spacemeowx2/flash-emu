@@ -7,39 +7,43 @@ export type AssignmentOp = '='
 export interface AstNode {
   readonly type: string
 }
-export const InvertOp = new Map<BinOp, BinOp>([
-  ['==', '!='],
-  ['===', '!=='],
-  ['<', '>='],
-  ['>', '<=']
+export const InvertOp = new Map<UnaryOp, Map<BinOp, BinOp>>([
+  ['!', new Map<BinOp, BinOp>([
+    ['==', '!='],
+    ['===', '!=='],
+    ['<', '>='],
+    ['>', '<=']
+  ])]
 ])
-for (let [k, v] of InvertOp) {
-  InvertOp.set(v, k)
+
+for (let [_, d] of InvertOp) {
+  for (let [k, v] of d) {
+    d.set(v, k)
+  }
 }
 
 export type StatementType = SwitchStatement | BreakStatement | IfJumpStatement | ReturnStatement | WhileStatement | IfStatement | JumpStatement | BlockStatement | VariableDeclaration | ExpressionStatement
 export type ExpressionType = CallExpression | UnresolvedExpression<any> | ArrayExpression | RuntimeExpression | BinaryExpression | UnaryExpression | AssignmentExpression | Identifier | Literal
 
-export class RefNode<T> {
-  constructor (public value: T) {}
-}
 class Folder {
-  fold (expr: ExpressionType) {
+  fold (expr: StatementType | ExpressionType) {
     if (expr.type === 'UnaryExpression') {
       return this.foldUnary(expr)
+    } else if (expr.type === 'WhileStatement') {
+      
     }
   }
   foldUnary (expr: UnaryExpression): ExpressionType {
     const arg = expr.arg
-    switch (expr.operator) {
-      case '!':
-        if (arg.type === 'BinaryExpression') {
-          return builder.binaryExpression(
-            arg.left,
-            arg.right,
-            InvertOp.get(arg.operator)
-          )
-        }
+    if (InvertOp.has(expr.operator)) {
+      const d = InvertOp.get(expr.operator)
+      if (arg.type === 'BinaryExpression') {
+        return builder.binaryExpression(
+          arg.left,
+          arg.right,
+          d.get(arg.operator)
+        )
+      }
     }
   }
 }
@@ -54,9 +58,7 @@ export abstract class AST2Code {
   simplify () {
     const folder = new Folder()
     for (let node of walkNode(this.program.body, true)) {
-      if (isExpression(node)) {
-        Object.assign(node, folder.fold(node))
-      }
+      Object.assign(node, folder.fold(node))
     }
   }
   unexpected (n: AstNode) {
