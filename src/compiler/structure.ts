@@ -234,7 +234,7 @@ export class StructureAnalysis {
         node.type = RegionType.Linear
         return true
       } else {
-        for (let p of [] as any) {// tail.preds
+        for (let p of tail.preds) {
           const stmts = p.node.stmts
           if (stmts[stmts.length - 1].type === 'IfJumpStatement') {
             let [nLast, th, el] = getLastIf(p.node.stmts)
