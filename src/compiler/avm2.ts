@@ -33,7 +33,6 @@ interface RTMCallProperty extends RuntimeMethod {
   readonly name: 'RTMCallProperty'
 }
 
-
 type Unresolved = UnresolvedFindProperty
 interface UnresolvedFindProperty extends UnresolvedItem {
   readonly type: 'FindProperty'

@@ -9,7 +9,6 @@ import * as AST from './ast'
 import {AST2JS} from 'compiler/ast2js'
 import {StructureAnalysis} from './structure'
 import {builder, StatementType, replaceNode, AstNode, JumpStatement, IfJumpStatement, Program, getAllNode, AssignmentExpression, Identifier} from './ast'
-import FlashEmu from 'flashemu';
 const logger = new Logger('Compiler')
 
 export interface Context {
