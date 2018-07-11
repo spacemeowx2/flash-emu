@@ -9,7 +9,7 @@ import {ByteArray} from '@/native/builtin/ByteArray'
 import {vm as valueManager, ValueManager} from './value'
 import {AXGlobalClass} from './base'
 import * as ABC from './abc'
-import * as CONSTANT from './constant'
+import * as CONSTANT from './CONSTANT'
 const logger = new Logger('Interpreter')
 type Stack = any[]
 type Locals = any[]

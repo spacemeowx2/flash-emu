@@ -1,4 +1,4 @@
-import * as CONSTANT from './constant'
+import * as CONSTANT from './CONSTANT'
 import * as ABC from './abc'
 import {NamespaceType, TRAIT} from './constant'
 import {Multiname, Namespace} from './abc'
